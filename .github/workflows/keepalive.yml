@@ -1,0 +1,32 @@
+# Supabase free-tier keep-alive (PLAN.md T1.8).
+#
+# Why this file exists: Supabase pauses Free Plan projects that show low
+# database activity over a 7-day period
+# (https://supabase.com/docs/guides/platform/free-project-pausing). A paused
+# project would silently stop all reminder scheduling, so this workflow pings
+# the Supabase REST endpoint once per day to count as activity.
+#
+# Required repository secrets (added during human setup, see WORKFLOW.md):
+# - SUPABASE_URL: e.g. https://xyzcompany.supabase.co
+# - SUPABASE_ANON_KEY: the project's anon (public) key
+#
+# NOTE (M2 follow-up): once the M2 tables exist, prefer pinging a real table
+# (e.g. /rest/v1/profiles?select=user_id&limit=1) instead of the API root so
+# the ping is unambiguously a database query.
+
+name: supabase-keepalive
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # once per day at 06:00 UTC
+  workflow_dispatch: # allow manual runs from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST endpoint
+        run: |
+          curl -fsS -o /dev/null -w "keepalive ping HTTP %{http_code}\n" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}"
