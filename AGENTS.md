@@ -46,6 +46,7 @@ At each natural commit point, print to the console:
 2. A body: what changed and why.
 3. A co-author credit line:  
    `Co-authored-by: <model name> via <tool name>`
+4. A plain-language explanation of the change, aimed at a CS student who knows fundamentals (variables, functions, basic data structures) but not this project's tools or patterns: name and briefly define each unfamiliar concept the first time it appears (e.g. "row-level security — a Postgres feature where the database itself blocks a query from returning another user's rows, so app code can't accidentally leak data"), and give a one-line gloss for jargon like "idempotent," "middleware," or "atomic" on first use. Skip the expansion for concepts already explained earlier in the project.
 
 ---
 
