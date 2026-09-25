@@ -21,6 +21,7 @@
 - [ ] **T1.1** Initialize the repo with `create-next-app` (TypeScript, App Router, Tailwind, ESLint).
   - Files: `package.json`, `tsconfig.json`, `tailwind.config.ts`, `next.config.ts`, `app/layout.tsx`, `app/page.tsx`
   - Done: `npm run build` exits 0.
+  - Version floor: `next` / `eslint-config-next` must stay on a patched 15.5.x (≥15.5.26 at time of writing). Vercel hard-fails deploys on known-vulnerable Next.js releases (first hit: 15.5.4 blocked per CVE-2025-66478), so never pin or downgrade below a patched release.
 
 - [ ] **T1.2** Install and configure shadcn/ui.
   - Files: `components.json`, `app/globals.css`, `lib/utils.ts`
