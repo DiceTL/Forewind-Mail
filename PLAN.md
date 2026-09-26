@@ -138,23 +138,23 @@
 - [x] **T4.1** *(Read-only for implementer — written by planning.)* Review the cron unit test file for expected behavior.
   - Files: `tests/unit/cron.test.ts`
 
-- [ ] **T4.2** Implement the reminder email template: given a reminder title, deadline (formatted in the user's local time zone), and lead time, produce a plain-text email subject and body. No action links (per `PRD.md` security requirements).
+- [x] **T4.2** Implement the reminder email template: given a reminder title, deadline (formatted in the user's local time zone), and lead time, produce a plain-text email subject and body. No action links (per `PRD.md` security requirements).
   - Files: `lib/mailer/buildEmailContent.ts`
   - Done: function accepts `{ title: string, deadline: DateTime | null, offsetMinutes: number, timezone: string }` and returns `{ subject: string, text: string }`; output contains no URLs or click-to-complete links.
 
-- [ ] **T4.3** Implement the Nodemailer/Gmail SMTP transport wrapper.
+- [x] **T4.3** Implement the Nodemailer/Gmail SMTP transport wrapper.
   - Files: `lib/mailer/sendEmail.ts`
   - Done: function accepts `{ to, subject, text }` and sends via Gmail SMTP using env vars; throws on auth failure; calls `buildEmailContent` to construct the message rather than inlining content.
 
-- [ ] **T4.4** Implement `POST /api/cron/send-due`: verify bearer-token secret (reject with 401 on mismatch); query `reminder_occurrences` where `send_at <= now()` and `status = 'pending'`; claim them (atomic status update to avoid double-send); call `sendEmail`; update status to `sent` or `failed`.
+- [x] **T4.4** Implement `POST /api/cron/send-due`: verify bearer-token secret (reject with 401 on mismatch); query `reminder_occurrences` where `send_at <= now()` and `status = 'pending'`; claim them (atomic status update to avoid double-send); call `sendEmail`; update status to `sent` or `failed`.
   - Files: `app/api/cron/send-due/route.ts`
   - Done: route returns 200 for a valid secret; 401 for wrong/missing secret; cron unit tests pass.
 
-- [ ] **T4.5** Add pause-switch check: skip sending for users whose `profiles.paused = true`; leave their occurrences as `pending` (not `failed`).
+- [x] **T4.5** Add pause-switch check: skip sending for users whose `profiles.paused = true`; leave their occurrences as `pending` (not `failed`).
   - Files: `app/api/cron/send-due/route.ts`
   - Done: paused-user test case passes.
 
-- [ ] **T4.6** Add retry logic: on each cron run, increment `attempt_count` for a claimed occurrence; if `attempt_count` is below a configured maximum (`MAX_SEND_ATTEMPTS`, default 3), retry sending; once the maximum is reached, set status to `failed` permanently and stop retrying. Update `last_attempted_at` on each attempt.
+- [x] **T4.6** Add retry logic: on each cron run, increment `attempt_count` for a claimed occurrence; if `attempt_count` is below a configured maximum (`MAX_SEND_ATTEMPTS`, default 3), retry sending; once the maximum is reached, set status to `failed` permanently and stop retrying. Update `last_attempted_at` on each attempt.
   - Files: `app/api/cron/send-due/route.ts`
   - Done: retry-count test cases pass; `attempt_count` and `last_attempted_at` columns (defined in T2.4) are incremented/updated on each attempt; an occurrence that exceeds `MAX_SEND_ATTEMPTS` is not retried again.
 
