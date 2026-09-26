@@ -12,6 +12,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * Paused profiles: skip send, leave occurrence status = 'pending' (do not fail, do not increment attempts).
  * Retry: each claim increments attempt_count and sets last_attempted_at; on send failure,
  * leave pending while attempt_count < MAX_SEND_ATTEMPTS; at/above max set status = 'failed'.
+ *
+ * Option B claim: pickup MUST go through admin.rpc("claim_due_occurrences", { p_now, p_limit }).
+ * Table-level due-select (pending + send_at <= now) returns empty in this mock so a route that
+ * bypasses rpc cannot pass. The rpc mutates in-memory rows (attempt_count + 1, last_attempted_at)
+ * and skips already-claimed ids to simulate SELECT … FOR UPDATE SKIP LOCKED.
  */
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -75,11 +80,13 @@ type Seed = {
 
 /**
  * Chainable admin-client mock for cron unit tests.
- * Supports select/eq/lte/in/update (thenable) and auth.admin.getUserById.
+ * Supports select/eq/lte/in/update (thenable), rpc(claim_due_occurrences), and auth.admin.getUserById.
  */
 function createAdminMock(seed: Seed) {
   const updateCalls: UpdateCall[] = [];
   const occurrences = seed.occurrences.map((o) => ({ ...o }));
+  /** Ids already returned by rpc — simulates SKIP LOCKED across sequential callers on one mock. */
+  const claimedIds = new Set<string>();
 
   function makeSelectBuilder(table: string) {
     const filters: { column: string; op: "eq" | "lte"; value: unknown }[] = [];
@@ -106,6 +113,19 @@ function createAdminMock(seed: Seed) {
         reject?: (reason: unknown) => unknown,
       ) {
         try {
+          // Option B: table-level due-select must not feed pickup. Any
+          // reminder_occurrences query that filters send_at with lte
+          // (the old due-pending scan) returns empty.
+          if (
+            table === "reminder_occurrences" &&
+            filters.some((f) => f.op === "lte" && f.column === "send_at")
+          ) {
+            return Promise.resolve({ data: [], error: null }).then(
+              resolve,
+              reject,
+            );
+          }
+
           let rows: Record<string, unknown>[] = [];
           if (table === "reminder_occurrences") {
             rows = occurrences as unknown as Record<string, unknown>[];
@@ -182,6 +202,43 @@ function createAdminMock(seed: Seed) {
     };
   }
 
+  async function claimDueOccurrences(args: {
+    p_now: string;
+    p_limit?: number;
+  }): Promise<{ data: OccurrenceRow[]; error: null }> {
+    const limit =
+      typeof args.p_limit === "number" && Number.isFinite(args.p_limit)
+        ? Math.max(0, args.p_limit)
+        : Number.POSITIVE_INFINITY;
+    const claimed: OccurrenceRow[] = [];
+
+    for (const row of occurrences) {
+      if (claimed.length >= limit) break;
+      if (row.status !== "pending") continue;
+      if (row.send_at > args.p_now) continue;
+      if (claimedIds.has(row.id)) continue;
+
+      claimedIds.add(row.id);
+      row.attempt_count = (row.attempt_count ?? 0) + 1;
+      row.last_attempted_at = args.p_now;
+
+      // Record as an updateCall so existing attempt_count assertions keep working
+      // once the route moves claim into rpc (no separate table update for claim).
+      updateCalls.push({
+        table: "reminder_occurrences",
+        values: {
+          attempt_count: row.attempt_count,
+          last_attempted_at: row.last_attempted_at,
+        },
+        filters: [{ column: "id", value: row.id }],
+      });
+
+      claimed.push({ ...row });
+    }
+
+    return { data: claimed, error: null };
+  }
+
   return {
     updateCalls,
     occurrences,
@@ -191,6 +248,24 @@ function createAdminMock(seed: Seed) {
           select: (_cols?: string) => makeSelectBuilder(table),
           ...makeUpdateBuilder(table),
         };
+      },
+      rpc(
+        fn: string,
+        args?: { p_now: string; p_limit?: number },
+      ): Promise<{ data: OccurrenceRow[] | null; error: { message: string } | null }> {
+        if (fn !== "claim_due_occurrences") {
+          return Promise.resolve({
+            data: null,
+            error: { message: `Unexpected rpc: ${fn}` },
+          });
+        }
+        if (!args || typeof args.p_now !== "string") {
+          return Promise.resolve({
+            data: null,
+            error: { message: "claim_due_occurrences requires p_now" },
+          });
+        }
+        return claimDueOccurrences(args);
       },
       auth: {
         admin: {
@@ -609,6 +684,66 @@ describe("POST /api/cron/send-due", () => {
     const res = await POST(cronRequest(`Bearer ${CRON_SECRET}`));
     expect(res.status).toBe(200);
     expect(mockedSendEmail).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
+  });
+
+  it("claims each due occurrence at most once across concurrent cron runs (Option B)", async () => {
+    const userId = "user-1";
+    const reminderId = "reminder-1";
+    const occurrenceId = "occ-once";
+    const nowIso = "2026-06-15T12:00:00.000Z";
+
+    const mock = createAdminMock({
+      profiles: [
+        { user_id: userId, timezone: "UTC", paused: false },
+      ],
+      reminders: [
+        {
+          id: reminderId,
+          user_id: userId,
+          title: "One email only",
+          deadline: "2026-06-15T18:00:00.000Z",
+        },
+      ],
+      occurrences: [
+        {
+          id: occurrenceId,
+          reminder_id: reminderId,
+          send_at: "2026-06-15T11:00:00.000Z",
+          status: "pending",
+          attempt_count: 0,
+          last_attempted_at: null,
+          sent_at: null,
+        },
+      ],
+      users: [{ id: userId, email: "user1@example.com" }],
+    });
+    // Shared mock: first POST's rpc claim mutates rows / claimedIds so the
+    // second POST's rpc returns zero rows (SKIP LOCKED stand-in).
+    mockedCreateAdminClient.mockReturnValue(
+      mock.client as unknown as ReturnType<typeof createAdminClient>,
+    );
+    vi.setSystemTime(new Date(nowIso));
+
+    const res1 = await POST(cronRequest(`Bearer ${CRON_SECRET}`));
+    const res2 = await POST(cronRequest(`Bearer ${CRON_SECRET}`));
+    expect(res1.status).toBe(200);
+    expect(res2.status).toBe(200);
+
+    expect(mockedSendEmail).toHaveBeenCalledTimes(1);
+
+    const sentUpdates = mock.updateCalls.filter(
+      (c) =>
+        c.table === "reminder_occurrences" && c.values.status === "sent",
+    );
+    expect(sentUpdates).toHaveLength(1);
+    expect(sentUpdates[0]!.filters).toEqual(
+      expect.arrayContaining([{ column: "id", value: occurrenceId }]),
+    );
+    expect(
+      mock.occurrences.filter((o) => o.status === "sent"),
+    ).toHaveLength(1);
 
     vi.useRealTimers();
   });
