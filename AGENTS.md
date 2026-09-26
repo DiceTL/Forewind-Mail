@@ -47,7 +47,12 @@ At each natural commit point, print to the console:
 2. A body: what changed and why.
 3. A co-author credit line:  
    `Co-authored-by: <model name> via <tool name>`
-4. A plain-language explanation of the change, aimed at a CS student who knows fundamentals (variables, functions, basic data structures) but not this project's tools or patterns: name and briefly define each unfamiliar concept the first time it appears (e.g. "row-level security — a Postgres feature where the database itself blocks a query from returning another user's rows, so app code can't accidentally leak data"), and give a one-line gloss for jargon like "idempotent," "middleware," or "atomic" on first use. Skip the expansion for concepts already explained earlier in the project.
+4. A change explanation in the following template, written for the human reviewer who must commit and operate this change but doesn't hold the implementation context. Fill every slot; write `None` rather than skipping one.
+   > **Narrative:** <goal → approach → how the pieces depend on each other, in dependency order not file order, 2–4 sentences; name what breaks if any one piece were missing>
+   > **Decisions:** <each choice that had more than one reasonable option as one line: chosen option / rejected alternative / why; include anything flagged back to planning>
+   > **Verification:** <each command run plus its result — `tsc`, `lint`, `vitest`, `build`, parsers, manual checks; never claim green without the output>
+   > **Your actions:** <the `git add` / `git commit` commands, any external setup the agent cannot run (dashboards, secrets, CLI commands), and any decision still owed — nothing the human must do may live only in chat>
+   Define a jargon term inline only when misunderstanding it would change a review decision; otherwise link the file and line (`path:line`) and move on.
 
 ---
 
