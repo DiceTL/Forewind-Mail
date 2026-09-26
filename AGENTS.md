@@ -53,6 +53,8 @@ At each natural commit point, print to the console:
    > **Your actions:** <the `git add` / `git commit` commands, any external setup the agent cannot run (dashboards, secrets, CLI commands), and any decision still owed — nothing the human must do may live only in chat>
    > Define a jargon term inline only when misunderstanding it would change a review decision; otherwise link the file and line (`path:line`) and move on.
 
+5. Print the commit as a paste-ready bash command: `git add <paths>` followed by `git commit -m "<summary>" -m "<body>"` — one `-m` per paragraph, no heredocs — so the human can run it unedited.
+
 ---
 
 ## Documentation Lookup & Sync
