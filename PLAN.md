@@ -18,32 +18,32 @@
 
 ### Tasks
 
-- [ ] **T1.1** Initialize the repo with `create-next-app` (TypeScript, App Router, Tailwind, ESLint).
+- [x] **T1.1** Initialize the repo with `create-next-app` (TypeScript, App Router, Tailwind, ESLint).
   - Files: `package.json`, `tsconfig.json`, `tailwind.config.ts`, `next.config.ts`, `app/layout.tsx`, `app/page.tsx`
   - Done: `npm run build` exits 0.
   - Version floor: `next` / `eslint-config-next` must stay on a patched 15.5.x (≥15.5.26 at time of writing). Vercel hard-fails deploys on known-vulnerable Next.js releases (first hit: 15.5.4 blocked per CVE-2025-66478), so never pin or downgrade below a patched release.
 
-- [ ] **T1.2** Install and configure shadcn/ui.
+- [x] **T1.2** Install and configure shadcn/ui.
   - Files: `components.json`, `app/globals.css`, `lib/utils.ts`
   - Done: at least one shadcn component (`Button`) renders on `app/page.tsx` without errors.
 
-- [ ] **T1.3** Install Prettier; add `.prettierrc`; wire `prettier` into the ESLint config.
+- [x] **T1.3** Install Prettier; add `.prettierrc`; wire `prettier` into the ESLint config.
   - Files: `.prettierrc`, `eslint.config.*`
   - Done: `npm run lint` exits 0 on the starter files.
 
-- [ ] **T1.4** Install Vitest and write one trivial passing unit test.
+- [x] **T1.4** Install Vitest and write one trivial passing unit test.
   - Files: `vitest.config.ts`, `tests/unit/smoke.test.ts`
   - Done: `npx vitest run` exits 0.
 
-- [ ] **T1.5** Install Playwright and write one trivial passing E2E test (page title check).
+- [x] **T1.5** Install Playwright and write one trivial passing E2E test (page title check).
   - Files: `playwright.config.ts`, `tests/e2e/smoke.spec.ts`
   - Done: `npx playwright test` exits 0 against `npm run dev`.
 
-- [ ] **T1.6** Add GitHub Actions workflow: install → lint → vitest → build → playwright.
+- [x] **T1.6** Add GitHub Actions workflow: install → lint → vitest → build → playwright.
   - Files: `.github/workflows/ci.yml`
   - Done: workflow YAML is valid; CI passes on push to main.
 
-- [ ] **T1.7** *(Human step — see `WORKFLOW.md` Human Setup Checklist.)* Connect repo to Vercel; confirm bare page loads at the deployed URL.
+- [x] **T1.7** *(Human step — see `WORKFLOW.md` Human Setup Checklist.)* Connect repo to Vercel; confirm bare page loads at the deployed URL.
   - Done: Vercel deployment succeeds; URL is publicly reachable.
 
 - [ ] **T1.8** Investigate Supabase's current free-tier inactivity-pause behavior. If projects can be paused after inactivity, add a scheduled GitHub Actions job that pings the Supabase REST endpoint once per day to keep the project active.
@@ -61,28 +61,28 @@
 
 ### Tasks
 
-- [ ] **T2.1** Write Supabase migration: create `profiles` table (`user_id` FK → auth.users, `timezone` text, `paused` bool default false). Add RLS policy: users may only read/write their own row.
+- [x] **T2.1** Write Supabase migration: create `profiles` table (`user_id` FK → auth.users, `timezone` text, `paused` bool default false). Add RLS policy: users may only read/write their own row.
   - Files: `supabase/migrations/<timestamp>_create_profiles.sql`
   - Done: `supabase db reset` applies cleanly; RLS rejects cross-user reads.
 
-- [ ] **T2.2** Write Supabase migration: create `reminders` table (`user_id` FK, `title` text, `deadline` timestamptz nullable, `repeat_rule` text nullable, `repeat_enabled` bool, `status` text check in ('active','done')). Add RLS.
+- [x] **T2.2** Write Supabase migration: create `reminders` table (`user_id` FK, `title` text, `deadline` timestamptz nullable, `repeat_rule` text nullable, `repeat_enabled` bool, `status` text check in ('active','done')). Add RLS.
   - Files: `supabase/migrations/<timestamp>_create_reminders.sql`
   - Done: migration applies; RLS in place.
 
-- [ ] **T2.3** Write Supabase migration: create `reminder_offsets` table (`reminder_id` FK, `offset_minutes` int with `CHECK (offset_minutes >= 5 AND offset_minutes % 5 = 0)`). Add RLS.
+- [x] **T2.3** Write Supabase migration: create `reminder_offsets` table (`reminder_id` FK, `offset_minutes` int with `CHECK (offset_minutes >= 5 AND offset_minutes % 5 = 0)`). Add RLS.
   - Files: `supabase/migrations/<timestamp>_create_reminder_offsets.sql`
   - Done: migration applies; inserting a 3-minute offset is rejected by the CHECK constraint.
 
-- [ ] **T2.4** Write Supabase migration: create `reminder_occurrences` table (`reminder_id` FK, `send_at` timestamptz, `status` text check in ('pending','sent','failed'), `sent_at` timestamptz nullable, `attempt_count` int not null default 0, `last_attempted_at` timestamptz nullable). Add RLS.
+- [x] **T2.4** Write Supabase migration: create `reminder_occurrences` table (`reminder_id` FK, `send_at` timestamptz, `status` text check in ('pending','sent','failed','cancelled'), `sent_at` timestamptz nullable, `attempt_count` int not null default 0, `last_attempted_at` timestamptz nullable). Add RLS.
   - Files: `supabase/migrations/<timestamp>_create_reminder_occurrences.sql`
   - Done: migration applies; RLS in place; `attempt_count` and `last_attempted_at` columns exist and are readable from the server client.
   - **Why:** `attempt_count` is required by T4.5's "retry up to a configured maximum" logic — without it there is no durable place to track how many times an occurrence has been retried across separate cron runs.
 
-- [ ] **T2.5** Generate TypeScript types from the Supabase schema.
+- [x] **T2.5** Generate TypeScript types from the Supabase schema.
   - Files: `lib/database.types.ts`
   - Done: file produced via `supabase gen types typescript`; no TypeScript errors in dependent files.
 
-- [ ] **T2.6** Add typed Supabase client helpers: browser client (anon key only), server client (anon key + auth cookie), admin client (service-role key — server only).
+- [x] **T2.6** Add typed Supabase client helpers: browser client (anon key only), server client (anon key + auth cookie), admin client (service-role key — server only).
   - Files: `lib/supabase/client.ts`, `lib/supabase/server.ts`, `lib/supabase/admin.ts`
   - Done: `client.ts` imports no server-only env vars; `admin.ts` is imported **only** by `app/api/cron/send-due/route.ts` and `app/api/account/delete/route.ts` — no other file under `app/` or `lib/` may import it.
   - **Why the account-deletion exception:** deleting a `auth.users` row requires the service-role key. Rather than spread that import, a single dedicated server route (`app/api/account/delete/route.ts`, added in T6.5) is the sole additional permitted importer. The security audit in T8.3 is updated accordingly.

@@ -42,8 +42,7 @@ Do not parallelize automatically. Only surface the option so the human can decid
 
 At each natural commit point, print to the console:
 
-1. A Conventional Commits–style summary line: `type(scope): summary`  
-   (e.g. `feat(scheduling): add computeSendTime with Luxon`)
+1. A summary line: first check for a project- or tool-specific commit-rules skill and follow it if one is available; otherwise use a Conventional Commits–style summary (`type(scope): summary`, e.g. `feat(scheduling): add computeSendTime with Luxon`).
 2. A body: what changed and why.
 3. A co-author credit line:  
    `Co-authored-by: <model name> via <tool name>`
@@ -52,7 +51,7 @@ At each natural commit point, print to the console:
    > **Decisions:** <each choice that had more than one reasonable option as one line: chosen option / rejected alternative / why; include anything flagged back to planning>
    > **Verification:** <each command run plus its result — `tsc`, `lint`, `vitest`, `build`, parsers, manual checks; never claim green without the output>
    > **Your actions:** <the `git add` / `git commit` commands, any external setup the agent cannot run (dashboards, secrets, CLI commands), and any decision still owed — nothing the human must do may live only in chat>
-   Define a jargon term inline only when misunderstanding it would change a review decision; otherwise link the file and line (`path:line`) and move on.
+   > Define a jargon term inline only when misunderstanding it would change a review decision; otherwise link the file and line (`path:line`) and move on.
 
 ---
 
@@ -62,10 +61,25 @@ Before starting any task, locate and read the `.md` files relevant to that task 
 
 After making a change whose subject is described in one of those files, update that file **in the same change** — never leave a doc stale as a separate, forgotten follow-up.
 
+### Doc-edit rules (exception to the source-dirs ban)
+
+Docs rot when agents can't touch them, so agents may edit project docs (`PLAN.md`, `PRD.md`, `README.md`, `WORKFLOW.md`) and PLAN-required root files (`middleware.ts`, root `*.config.*`) only within these limits:
+
+1. **Status only.** Tick task checkboxes; update status prose for completed work (milestone pointers, status-value lists, done outcomes). Never rewrite requirements, reword acceptance criteria, or change scope — anything scope-shaped stops and flags to planning/human.
+2. **Same change.** Doc updates ride in the same commit as the code they describe.
+3. **Evidence.** Tick a box only when its Done criteria were verified with command output in this session. Human-only steps (deploys, dashboard clicks, scheduled runs) stay unchecked until the human confirms.
+4. **Minimal diff.** The checkbox character or the status sentence — nothing around it.
+
+The human reviews `git diff *.md` first, before code.
+
 ---
 
 ## Testing Constraint
 
 **Never modify any file under the `tests/` directory.**
+
+"Modify" means changing an existing test file. Creating new helper files under `tests/` is permitted only when the milestone's PLAN task explicitly orders it (e.g. T7.2) — those new files are frozen the same way once written.
+
+Before implementing any milestone, verify that milestone's test files already exist; if they are missing, stop and flag back to planning instead of writing code.
 
 Tests are authored by the planning tool before each milestone's implementation begins (see `WORKFLOW.md` testing strategy). If a test appears incorrect or impossible to satisfy without modifying it, flag the issue back to planning instead of editing the test directly.

@@ -28,5 +28,5 @@ jobs:
       - name: Ping Supabase REST endpoint
         run: |
           curl -fsS -o /dev/null -w "keepalive ping HTTP %{http_code}\n" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/profiles?select=user_id&limit=1" \
             -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}"

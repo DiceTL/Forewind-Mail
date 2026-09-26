@@ -44,7 +44,7 @@
 - AC: Lead times that would already be overdue at the moment of the edit are canceled, not sent as an immediate burst.
 
 **Story 6.** As a user, I want to see whether each of my reminder emails actually sent, so I can trust the system or know when to check my inbox settings.
-- AC: Each reminder's occurrences show a status: pending, sent, or failed, with a timestamp.
+- AC: Each reminder's occurrences show a status: pending, sent, failed, or cancelled, with a timestamp.
 
 **Story 7.** As a user, I want to pause all emails or delete my account, so I'm in control of a tool that has my email address.
 - AC: A pause switch stops all sending immediately without deleting data.
@@ -85,7 +85,7 @@ User -> Next.js (Vercel) -> Supabase (Postgres + Auth)
 - `profiles` — one row per user: time zone, pause switch.
 - `reminders` — title, optional deadline, repeat rule and toggle, status (active/done).
 - `reminder_offsets` — one or more lead times per reminder.
-- `reminder_occurrences` — one row per email that needs to be sent, computed from a reminder's deadline and offsets; carries send time and delivery state (pending/sent/failed).
+- `reminder_occurrences` — one row per email that needs to be sent, computed from a reminder's deadline and offsets; carries send time and delivery state (pending/sent/failed/cancelled).
 
 All timestamps are stored in UTC; each user's time zone is detected at first login (editable later) and used to convert every input and display.
 
