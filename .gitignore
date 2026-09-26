@@ -16,5 +16,8 @@ playwright/.cache/
 .env*
 !.env.example
 
+# supabase CLI local metadata (link cache, version info — never commit)
+supabase/.temp/
+
 # typescript
 *.tsbuildinfo

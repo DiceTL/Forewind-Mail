@@ -13,6 +13,7 @@
 
 - Only edit files inside the project's source directories (`app/`, `lib/`, `components/`, `supabase/migrations/`, `public/`, `styles/`). When in doubt, ask.
 - Never touch `.env*` files, lockfiles (`package-lock.json`), or CI config (`.github/`) unless **explicitly instructed** for that specific task.
+- Exception: an agent may append entries to `.gitignore` when a tool generates local-only files that must never be committed (e.g. CLI caches like `supabase/.temp/`). Appending only — never remove existing entries, and never edit any other file outside the source directories.
 - Never add a new npm dependency without flagging it first and getting human approval before installing.
 - Stop and ask before any destructive or irreversible action: deleting a file, altering a database schema, or changing auth configuration.
 - Treat `PRD.md` as fixed scope for the milestone in progress — do not add features not listed there.
