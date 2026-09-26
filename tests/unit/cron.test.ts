@@ -16,7 +16,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * Option B claim: pickup MUST go through admin.rpc("claim_due_occurrences", { p_now, p_limit }).
  * Table-level due-select (pending + send_at <= now) returns empty in this mock so a route that
  * bypasses rpc cannot pass. The rpc mutates in-memory rows (attempt_count + 1, last_attempted_at)
- * and skips already-claimed ids to simulate SELECT … FOR UPDATE SKIP LOCKED.
+ * and skips already-claimed ids to simulate SELECT … FOR UPDATE SKIP LOCKED. Paused profiles
+ * are skipped at claim time (reminders → profiles); missing profile fails open (still claims).
  */
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -217,6 +218,16 @@ function createAdminMock(seed: Seed) {
       if (row.status !== "pending") continue;
       if (row.send_at > args.p_now) continue;
       if (claimedIds.has(row.id)) continue;
+
+      // Skip paused users at claim time so attempt_count stays 0 (header contract).
+      // Fail-open: missing profile → still claim.
+      const reminder = seed.reminders.find((r) => r.id === row.reminder_id);
+      if (reminder) {
+        const profile = seed.profiles.find(
+          (p) => p.user_id === reminder.user_id,
+        );
+        if (profile?.paused === true) continue;
+      }
 
       claimedIds.add(row.id);
       row.attempt_count = (row.attempt_count ?? 0) + 1;
