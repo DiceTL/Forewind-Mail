@@ -146,7 +146,7 @@
   - Files: `lib/mailer/sendEmail.ts`
   - Done: function accepts `{ to, subject, text }` and sends via Gmail SMTP using env vars; throws on auth failure; calls `buildEmailContent` to construct the message rather than inlining content.
 
-- [ ] **T4.4** Implement `POST /api/cron/send-due`: verify bearer-token secret (reject with 401 on mismatch); query `reminder_occurrences` where `send_at <= now()` and `status = 'pending'`; claim them (atomic status update to avoid double-send); call `sendEmail`; update status to `sent` or `failed`.
+- [x] **T4.4** Implement `POST /api/cron/send-due`: verify bearer-token secret (reject with 401 on mismatch); query `reminder_occurrences` where `send_at <= now()` and `status = 'pending'`; claim them (atomic status update to avoid double-send); call `sendEmail`; update status to `sent` or `failed`.
   - Files: `app/api/cron/send-due/route.ts`
   - Done: route returns 200 for a valid secret; 401 for wrong/missing secret; cron unit tests pass.
 

@@ -8,6 +8,10 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_MAX_SEND_ATTEMPTS = 3;
 
+// Small enough that one per-minute run finishes inside serverless limits
+// (PRD/Vercel risk); unclaimed rows simply wait for the next minute.
+const CLAIM_BATCH_LIMIT = 100;
+
 function parseMaxAttempts(raw: string | undefined): number {
   const parsed = Number.parseInt(raw ?? "", 10);
   if (!Number.isFinite(parsed) || parsed < 1) {
@@ -34,7 +38,7 @@ function deriveOffsetMinutes(
   return 5;
 }
 
-type DueOccurrence = {
+type ClaimedOccurrence = {
   id: string;
   reminder_id: string;
   send_at: string;
@@ -79,17 +83,34 @@ export async function POST(req: Request): Promise<Response> {
   const supabase = createAdminClient();
   const nowIso = new Date().toISOString();
 
-  const { data: dueRows, error: dueError } = await supabase
-    .from("reminder_occurrences")
-    .select("id,reminder_id,send_at,status,attempt_count")
-    .eq("status", "pending")
-    .lte("send_at", nowIso);
+  // Option B pickup: ONE rpc call locks due rows (SKIP LOCKED),
+  // increments attempt_count, stamps last_attempted_at, and returns only
+  // rows this run won. A concurrent run receives a disjoint set, so the
+  // same reminder can never be sent twice. No table-level due-select here:
+  // the frozen test mock returns empty for it on purpose, so bypassing
+  // rpc cannot pass.
+  //
+  // NOTE on typing: Database["public"]["Functions"] is empty (types were
+  // generated before this function existed and regen needs DB access), so
+  // rpc is cast to the documented signature of claim_due_occurrences
+  // (see supabase/migrations/20260926000005_claim_due_occurrences.sql).
+  const claimRpc = supabase.rpc as unknown as (
+    fn: "claim_due_occurrences",
+    args: { p_now: string; p_limit: number },
+  ) => Promise<{
+    data: ClaimedOccurrence[] | null;
+    error: { message: string } | null;
+  }>;
+  const { data: claimedRows, error: claimError } = await claimRpc(
+    "claim_due_occurrences",
+    { p_now: nowIso, p_limit: CLAIM_BATCH_LIMIT },
+  );
 
-  if (dueError) {
-    return Response.json({ error: "Failed to load due occurrences." }, { status: 500 });
+  if (claimError) {
+    return Response.json({ error: "Failed to claim due occurrences." }, { status: 500 });
   }
 
-  const due = (dueRows ?? []) as DueOccurrence[];
+  const due = (claimedRows ?? []) as ClaimedOccurrence[];
   let sent = 0;
   let failed = 0;
   let pendingRetry = 0;
@@ -97,6 +118,11 @@ export async function POST(req: Request): Promise<Response> {
 
   for (const occ of due) {
     try {
+      // attempt_count / last_attempted_at were already recorded by the
+      // claim — never increment here, or one delivery would burn two
+      // attempts.
+      const attemptCount = occ.attempt_count ?? 0;
+
       const { data: reminderRows } = await supabase
         .from("reminders")
         .select("id,user_id,title,deadline")
@@ -117,8 +143,9 @@ export async function POST(req: Request): Promise<Response> {
         profileRows as unknown as ProfileRow[] | null,
       );
 
-      // T4.5: paused users are skipped; occurrences stay pending (no
-      // attempt increment, no failed/sent update).
+      // T4.5 defense in depth: the claim already excludes paused users,
+      // but if one slips through (e.g. paused mid-run) skip without
+      // failing — the row stays pending for after unpause.
       if (profile?.paused) {
         skipped += 1;
         continue;
@@ -148,45 +175,7 @@ export async function POST(req: Request): Promise<Response> {
         timezone,
       });
 
-      // Option-A claim (best effort, NOT fully atomic): only claim rows
-      // still pending with the attempt_count we read. A concurrent run
-      // that claimed first changes attempt_count, so this filter matches
-      // nothing — but PostgREST only reports "matched 0 rows" via
-      // returned rows/count, which the frozen test mock does not provide,
-      // so we verify by re-reading below instead.
-      const attemptCount = (occ.attempt_count ?? 0) + 1;
-      const attemptedAt = new Date().toISOString();
-      await supabase
-        .from("reminder_occurrences")
-        .update({
-          attempt_count: attemptCount,
-          last_attempted_at: attemptedAt,
-        })
-        .eq("id", occ.id)
-        .eq("status", "pending")
-        .eq("attempt_count", occ.attempt_count ?? 0);
-
-      // Verify we won the claim: if another run claimed after our read,
-      // attempt_count no longer equals ours (or the status moved on) —
-      // skip sending so at most one run delivers. Residual risk: two runs
-      // can still interleave claim+verify identically; closing that needs
-      // the single-step server-side claim (Option B, planning sign-off).
-      const { data: claimRows } = await supabase
-        .from("reminder_occurrences")
-        .select("id,status,attempt_count")
-        .eq("id", occ.id);
-      const claimed = firstRow<{ id: string; status: string; attempt_count: number }>(
-        claimRows as unknown as { id: string; status: string; attempt_count: number }[] | null,
-      );
-      if (
-        !claimed ||
-        claimed.status !== "pending" ||
-        claimed.attempt_count !== attemptCount
-      ) {
-        skipped += 1;
-        continue;
-      }
-
+      const sentAt = new Date().toISOString();
       try {
         await sendEmail({
           to: email,
@@ -195,26 +184,19 @@ export async function POST(req: Request): Promise<Response> {
         });
         await supabase
           .from("reminder_occurrences")
-          .update({
-            status: "sent",
-            attempt_count: attemptCount,
-            last_attempted_at: attemptedAt,
-            sent_at: attemptedAt,
-          })
+          .update({ status: "sent", sent_at: sentAt })
           .eq("id", occ.id);
         sent += 1;
       } catch {
         if (attemptCount >= maxAttempts) {
           await supabase
             .from("reminder_occurrences")
-            .update({
-              status: "failed",
-              attempt_count: attemptCount,
-              last_attempted_at: attemptedAt,
-            })
+            .update({ status: "failed" })
             .eq("id", occ.id);
           failed += 1;
         } else {
+          // Stays pending with the claim's attempt recorded; next run
+          // re-claims (SKIP LOCKED no longer excludes it once unlocked).
           pendingRetry += 1;
         }
       }
