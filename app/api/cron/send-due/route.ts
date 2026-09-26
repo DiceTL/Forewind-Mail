@@ -92,9 +92,12 @@ export async function POST(req: Request): Promise<Response> {
   //
   // NOTE on typing: Database["public"]["Functions"] is empty (types were
   // generated before this function existed and regen needs DB access), so
-  // rpc is cast to the documented signature of claim_due_occurrences
+  // rpc is asserted to the documented signature of claim_due_occurrences
   // (see supabase/migrations/20260926000005_claim_due_occurrences.sql).
-  const claimRpc = supabase.rpc as unknown as (
+  // The method MUST stay bound to the client (.bind): extracting it bare
+  // loses its `this` context and crashes in production with
+  // "Cannot read properties of undefined (reading 'rest')".
+  const claimRpc = supabase.rpc.bind(supabase) as unknown as (
     fn: "claim_due_occurrences",
     args: { p_now: string; p_limit: number },
   ) => Promise<{
