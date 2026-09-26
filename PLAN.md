@@ -46,7 +46,7 @@
 - [x] **T1.7** *(Human step — see `WORKFLOW.md` Human Setup Checklist.)* Connect repo to Vercel; confirm bare page loads at the deployed URL.
   - Done: Vercel deployment succeeds; URL is publicly reachable.
 
-- [ ] **T1.8** Investigate Supabase's current free-tier inactivity-pause behavior. If projects can be paused after inactivity, add a scheduled GitHub Actions job that pings the Supabase REST endpoint once per day to keep the project active.
+- [x] **T1.8** Investigate Supabase's current free-tier inactivity-pause behavior. If projects can be paused after inactivity, add a scheduled GitHub Actions job that pings the Supabase REST endpoint once per day to keep the project active.
   - Files: `.github/workflows/keepalive.yml` (only if the ping is needed — omit the file if Supabase's current policy doesn't pause active projects)
   - Done: either the file exists and the scheduled job runs successfully, or a comment in this task documents that no ping is needed under the current Supabase free-tier policy and why.
   - **Why:** `WORKFLOW.md` lists a paused Supabase project as a named technical risk — "a paused project would silently stop all scheduling." This task resolves that risk before it can affect any later milestone.
@@ -95,7 +95,7 @@
 
 > **Testing constraint:** Per `WORKFLOW.md`, tests for this milestone are **written by planning before implementation starts**. The implementing agent must not modify any file under `tests/`. If a test appears wrong, flag it back to planning.
 
-**Parallel-agent opportunities:** `computeSendTime` (T3.2), `validateOffset` (T3.3), and `cancelOccurrences` (T3.6) are independent pure functions in separate files with no shared state — they can be built concurrently. `computeNextOccurrence` (T3.4) and `recomputeOnDeadlineEdit` (T3.5) depend on the output of the others and must follow sequentially. **Confirm with the human before running concurrently.**
+**Parallel-agent opportunities:** `computeSendTime` (T3.2) and `validateOffset` (T3.3) are independent pure functions in separate files with no shared state — they can be built concurrently. `cancelOccurrences` (T3.6) is DB-backed (sets `status = 'cancelled'` via the server client), not pure, but shares no files or state with the others so it can also be built concurrently. `computeNextOccurrence` (T3.4) and `recomputeOnDeadlineEdit` (T3.5) depend on the output of the others and must follow sequentially. **Confirm with the human before running concurrently.**
 
 ### Tasks
 
