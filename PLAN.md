@@ -99,30 +99,30 @@
 
 ### Tasks
 
-- [ ] **T3.1** *(Read-only for implementer — written by planning.)* Review the test file to understand the expected signatures and behavior before writing any code.
+- [x] **T3.1** *(Read-only for implementer — written by planning.)* Review the test file to understand the expected signatures and behavior before writing any code.
   - Files: `tests/unit/scheduling.test.ts`
 
-- [ ] **T3.2** Implement `computeSendTime(deadline: DateTime, offsetMinutes: number): DateTime` using Luxon.
+- [x] **T3.2** Implement `computeSendTime(deadline: DateTime, offsetMinutes: number): DateTime` using Luxon.
   - Files: `lib/scheduling/computeSendTime.ts`
   - Done: all `computeSendTime` tests in `tests/unit/scheduling.test.ts` pass.
 
-- [ ] **T3.3** Implement `validateOffset(offsetMinutes: number, deadline: DateTime | null, now: DateTime): ValidationResult`.
+- [x] **T3.3** Implement `validateOffset(offsetMinutes: number, deadline: DateTime | null, now: DateTime): ValidationResult`.
   - Files: `lib/scheduling/validateOffset.ts`
   - Done: 5-minute-minimum and past-at-creation rejection tests pass.
 
-- [ ] **T3.4** Implement `computeNextOccurrence(rule: RRule, after: DateTime): DateTime | null` using `rrule`.
+- [x] **T3.4** Implement `computeNextOccurrence(rule: RRule, after: DateTime): DateTime | null` using `rrule`.
   - Files: `lib/scheduling/computeNextOccurrence.ts`
   - Done: daily, weekly (chosen days), and monthly repeat tests pass; no-end-date case passes.
 
-- [ ] **T3.5** Implement `recomputeOnDeadlineEdit(reminderId: string, newDeadline: DateTime, now: DateTime): OccurrenceUpdate[]`.
+- [x] **T3.5** Implement `recomputeOnDeadlineEdit(reminderId: string, newDeadline: DateTime, now: DateTime): OccurrenceUpdate[]`.
   - Files: `lib/scheduling/recomputeOnDeadlineEdit.ts`
   - Done: overdue-lead-times-are-cancelled (not burst-sent) test passes.
 
-- [ ] **T3.6** Implement `cancelOccurrences(reminderId: string): void` — marks all `pending` occurrences for a reminder as cancelled in the DB using the server client.
+- [x] **T3.6** Implement `cancelOccurrences(reminderId: string): void` — marks all `pending` occurrences for a reminder as cancelled in the DB using the server client.
   - Files: `lib/scheduling/cancelOccurrences.ts`
   - Done: "done cancels the series" tests pass.
 
-- [ ] **T3.7** Run the full Vitest suite; confirm all scheduling tests are green. Verify `git diff tests/` is empty.
+- [x] **T3.7** Run the full Vitest suite; confirm all scheduling tests are green. Verify `git diff tests/` is empty.
   - Done: `npx vitest run` exits 0; no test files were modified.
 
 ---
@@ -135,7 +135,7 @@
 
 ### Tasks
 
-- [ ] **T4.1** *(Read-only for implementer — written by planning.)* Review the cron unit test file for expected behavior.
+- [x] **T4.1** *(Read-only for implementer — written by planning.)* Review the cron unit test file for expected behavior.
   - Files: `tests/unit/cron.test.ts`
 
 - [ ] **T4.2** Implement the reminder email template: given a reminder title, deadline (formatted in the user's local time zone), and lead time, produce a plain-text email subject and body. No action links (per `PRD.md` security requirements).
