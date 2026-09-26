@@ -148,9 +148,12 @@ export async function POST(req: Request): Promise<Response> {
         timezone,
       });
 
-      // T4.4 claim + T4.6 retry bookkeeping: increment attempt_count and
-      // stamp last_attempted_at before attempting the send, so a crashed
-      // run still records the attempt and a concurrent run sees it.
+      // Option-A claim (best effort, NOT fully atomic): only claim rows
+      // still pending with the attempt_count we read. A concurrent run
+      // that claimed first changes attempt_count, so this filter matches
+      // nothing — but PostgREST only reports "matched 0 rows" via
+      // returned rows/count, which the frozen test mock does not provide,
+      // so we verify by re-reading below instead.
       const attemptCount = (occ.attempt_count ?? 0) + 1;
       const attemptedAt = new Date().toISOString();
       await supabase
@@ -159,7 +162,30 @@ export async function POST(req: Request): Promise<Response> {
           attempt_count: attemptCount,
           last_attempted_at: attemptedAt,
         })
+        .eq("id", occ.id)
+        .eq("status", "pending")
+        .eq("attempt_count", occ.attempt_count ?? 0);
+
+      // Verify we won the claim: if another run claimed after our read,
+      // attempt_count no longer equals ours (or the status moved on) —
+      // skip sending so at most one run delivers. Residual risk: two runs
+      // can still interleave claim+verify identically; closing that needs
+      // the single-step server-side claim (Option B, planning sign-off).
+      const { data: claimRows } = await supabase
+        .from("reminder_occurrences")
+        .select("id,status,attempt_count")
         .eq("id", occ.id);
+      const claimed = firstRow<{ id: string; status: string; attempt_count: number }>(
+        claimRows as unknown as { id: string; status: string; attempt_count: number }[] | null,
+      );
+      if (
+        !claimed ||
+        claimed.status !== "pending" ||
+        claimed.attempt_count !== attemptCount
+      ) {
+        skipped += 1;
+        continue;
+      }
 
       try {
         await sendEmail({
