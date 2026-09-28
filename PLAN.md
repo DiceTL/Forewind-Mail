@@ -187,7 +187,7 @@
   - Done: after first sign-in, a `profiles` row exists with a non-null `timezone` and `paused = false`.
 
 - [ ] **T5.5** *(Read-only for implementer — written by planning.)* Run the isolation Playwright test: sign in as user A, create a reminder, sign in as user B, confirm the reminder is not visible or accessible.
-  - Files: `tests/e2e/isolation.spec.ts`
+  - Files: `tests/e2e/isolation.spec.ts`, `tests/helpers/e2eAuth.ts`, `tests/helpers/seedReminder.ts`
   - Done: test passes.
 
 ---

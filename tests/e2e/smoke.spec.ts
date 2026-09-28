@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-test("homepage has the expected title", async ({ page }) => {
+test("app shell exposes Forewind Mail title", async ({ page }) => {
+  // Follows redirects (e.g. / → /login once T5.2 auth middleware lands).
   await page.goto("/");
   await expect(page).toHaveTitle(/Forewind Mail/);
 });
