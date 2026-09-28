@@ -172,9 +172,9 @@
 
 ### Tasks
 
-- [ ] **T5.1** *(Human step — see `WORKFLOW.md` Human Setup Checklist.)* Configure Google OAuth provider in Supabase; add test users to the OAuth consent screen.
+- [x] **T5.1** *(Human step — see `WORKFLOW.md` Human Setup Checklist.)* Configure Google OAuth provider in Supabase; add test users to the OAuth consent screen.
 
-- [ ] **T5.2** Add Next.js middleware to protect all routes except `/login`; redirect unauthenticated requests to `/login`.
+- [x] **T5.2** Add Next.js middleware to protect all routes except `/login`; redirect unauthenticated requests to `/login`.
   - Files: `middleware.ts`
   - Done: `curl -I <URL>/` without a session cookie returns a redirect to `/login`.
 
