@@ -158,7 +158,7 @@
   - Files: `app/api/cron/send-due/route.ts`
   - Done: retry-count test cases pass; `attempt_count` and `last_attempted_at` columns (defined in T2.4) are incremented/updated on each attempt; an occurrence that exceeds `MAX_SEND_ATTEMPTS` is not retried again.
 
-- [ ] **T4.7** *(Human step — see `WORKFLOW.md` Human Setup Checklist.)* Enable `pg_cron`/`pg_net` in Supabase; schedule the per-minute job pointing at the deployed cron route with the bearer-token secret.
+- [x] **T4.7** *(Human step — see `WORKFLOW.md` Human Setup Checklist.)* Enable `pg_cron`/`pg_net` in Supabase; schedule the per-minute job pointing at the deployed cron route with the bearer-token secret.
   - Done: a manually inserted past-due occurrence triggers a real email within ~2 minutes.
 
 
