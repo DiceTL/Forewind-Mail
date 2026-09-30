@@ -1,9 +1,6 @@
 import type { Page } from "@playwright/test";
-import {
-  createClient,
-  type Session,
-  type SupabaseClient,
-} from "@supabase/supabase-js";
+import { createChunks, stringToBase64URL } from "@supabase/ssr";
+import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 
 export type E2EEnv = {
@@ -12,6 +9,11 @@ export type E2EEnv = {
   serviceRoleKey: string;
   userAEmail: string;
   userBEmail: string;
+};
+
+export type ProfileSnapshot = {
+  timezone: string;
+  paused: boolean;
 };
 
 /**
@@ -109,9 +111,7 @@ export async function mintSessionForEmail(email: string): Promise<{
   const userId = data.user?.id;
   const hashedToken = data.properties?.hashed_token;
   if (!userId || !hashedToken) {
-    throw new Error(
-      `mintSessionForEmail(${email}): generateLink missing user id or hashed_token`,
-    );
+    throw new Error(`mintSessionForEmail(${email}): generateLink missing user id or hashed_token`);
   }
 
   const { data: otpData, error: otpError } = await anon.auth.verifyOtp({
@@ -130,9 +130,7 @@ export async function mintSessionForEmail(email: string): Promise<{
 /**
  * Anon client authenticated as the given session — RLS applies as that user.
  */
-export async function createRlsClient(
-  session: Session,
-): Promise<SupabaseClient<Database>> {
+export async function createRlsClient(session: Session): Promise<SupabaseClient<Database>> {
   const client = createE2EAnonClient();
   const { error } = await client.auth.setSession({
     access_token: session.access_token,
@@ -144,68 +142,103 @@ export async function createRlsClient(
   return client;
 }
 
+export async function getProfile(userId: string): Promise<ProfileSnapshot | null> {
+  const admin = createE2EAdminClient();
+  const { data, error } = await admin
+    .from("profiles")
+    .select("timezone, paused")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`getProfile(${userId}): ${error.message}`);
+  }
+  return data;
+}
+
+/**
+ * Upsert profile fields. Returns the prior snapshot (or null if none existed)
+ * so callers can restore after the test — OAuth callback uses ignoreDuplicates
+ * and will not repair a clobbered timezone on next login.
+ */
+export async function upsertProfile(
+  userId: string,
+  fields: Partial<ProfileSnapshot> & Pick<ProfileSnapshot, "timezone" | "paused">,
+): Promise<ProfileSnapshot | null> {
+  const admin = createE2EAdminClient();
+  const previous = await getProfile(userId);
+  const { error } = await admin.from("profiles").upsert(
+    {
+      user_id: userId,
+      timezone: fields.timezone,
+      paused: fields.paused,
+    },
+    { onConflict: "user_id" },
+  );
+  if (error) {
+    throw new Error(`upsertProfile(${userId}): ${error.message}`);
+  }
+  return previous;
+}
+
+export async function restoreProfile(
+  userId: string,
+  previous: ProfileSnapshot | null,
+): Promise<void> {
+  if (!previous) {
+    const admin = createE2EAdminClient();
+    const { error } = await admin.from("profiles").delete().eq("user_id", userId);
+    if (error) {
+      throw new Error(`restoreProfile delete(${userId}): ${error.message}`);
+    }
+    return;
+  }
+  await upsertProfile(userId, previous);
+}
+
 /**
  * Inject a session into the browser so middleware / SSR see the user.
- * Isolation assertions prefer createRlsClient; this is for page-level checks.
+ *
+ * Writes cookies in the same shape @supabase/ssr defaults to
+ * (cookieEncoding: "base64url", with createChunks for oversized payloads).
+ * createBrowserClient persists via cookies only — localStorage is not used.
  */
 export async function signInAs(page: Page, email: string): Promise<Session> {
   const { url } = requireE2EEnv();
   const { session } = await mintSessionForEmail(email);
   const projectRef = new URL(url).hostname.split(".")[0];
+  const storageKey = `sb-${projectRef}-auth-token`;
 
-  // Land on the app origin so cookies attach to localhost.
-  await page.goto("/", { waitUntil: "domcontentloaded" });
+  const sessionPayload = JSON.stringify({
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+    token_type: "bearer",
+    expires_in: 3600,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+  });
+  const encoded = `base64-${stringToBase64URL(sessionPayload)}`;
+  const chunks = createChunks(storageKey, encoded);
 
-  await page.evaluate(
-    ({
-      supabaseUrl,
-      accessToken,
-      refreshToken,
-    }: {
-      supabaseUrl: string;
-      accessToken: string;
-      refreshToken: string;
-    }) => {
-      // Persist in the shape @supabase/ssr createBrowserClient reads from storage.
-      const storageKey = `sb-${new URL(supabaseUrl).hostname.split(".")[0]}-auth-token`;
-      const payload = JSON.stringify({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-        token_type: "bearer",
-        expires_in: 3600,
-        expires_at: Math.floor(Date.now() / 1000) + 3600,
-      });
-      window.localStorage.setItem(storageKey, payload);
-      // Also set a cookie for SSR middleware that reads cookies, not localStorage.
-      document.cookie = `${storageKey}=${encodeURIComponent(payload)}; path=/; SameSite=Lax`;
-    },
-    {
-      supabaseUrl: url,
-      accessToken: session.access_token,
-      refreshToken: session.refresh_token,
-    },
-  );
+  // Public route so middleware does not bounce before cookies exist.
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
 
-  // Ensure cookie is visible to subsequent navigations via Playwright cookie jar too.
-  await page.context().addCookies([
-    {
-      name: `sb-${projectRef}-auth-token`,
-      value: encodeURIComponent(
-        JSON.stringify({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-          token_type: "bearer",
-          expires_in: 3600,
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
-        }),
-      ),
+  await page.context().addCookies(
+    chunks.map((chunk) => ({
+      name: chunk.name,
+      value: chunk.value,
       domain: "localhost",
       path: "/",
       httpOnly: false,
       secure: false,
-      sameSite: "Lax",
-    },
-  ]);
+      sameSite: "Lax" as const,
+    })),
+  );
+
+  // Mirror into document.cookie for same-document client reads before reload.
+  await page.evaluate((cookieChunks: { name: string; value: string }[]) => {
+    for (const chunk of cookieChunks) {
+      document.cookie = `${chunk.name}=${encodeURIComponent(chunk.value)}; path=/; SameSite=Lax`;
+    }
+  }, chunks);
 
   return session;
 }
