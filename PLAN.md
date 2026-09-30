@@ -182,7 +182,7 @@
   - Files: `app/login/page.tsx`, `app/actions/auth.ts`
   - Done: clicking the button initiates the Google OAuth flow; after sign-in the user lands on `/`; sign-out clears the session.
 
-- [ ] **T5.4** On first login (post-OAuth callback), upsert a `profiles` row: detect the user's IANA time zone from the browser (passed via a form or cookie) and store it; default to `UTC` if undetectable.
+- [x] **T5.4** On first login (post-OAuth callback), upsert a `profiles` row: detect the user's IANA time zone from the browser (passed via a form or cookie) and store it; default to `UTC` if undetectable.
   - Files: `app/api/auth/callback/route.ts` (or `app/actions/auth.ts`)
   - Done: after first sign-in, a `profiles` row exists with a non-null `timezone` and `paused = false`.
 
