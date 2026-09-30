@@ -178,7 +178,7 @@
   - Files: `middleware.ts`
   - Done: `curl -I <URL>/` without a session cookie returns a redirect to `/login`.
 
-- [ ] **T5.3** Implement sign-in page with a "Sign in with Google" button, and a sign-out server action.
+- [x] **T5.3** Implement sign-in page with a "Sign in with Google" button, and a sign-out server action.
   - Files: `app/login/page.tsx`, `app/actions/auth.ts`
   - Done: clicking the button initiates the Google OAuth flow; after sign-in the user lands on `/`; sign-out clears the session.
 
