@@ -17,6 +17,7 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          onboarded: boolean
           paused: boolean
           timezone: string
           updated_at: string
@@ -24,6 +25,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          onboarded?: boolean
           paused?: boolean
           timezone?: string
           updated_at?: string
@@ -31,6 +33,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          onboarded?: boolean
           paused?: boolean
           timezone?: string
           updated_at?: string
