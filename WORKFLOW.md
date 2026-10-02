@@ -194,7 +194,7 @@ Full Playwright flow: sign up → create reminder → seed a due occurrence
 Empty/error states, mobile layout check. Security pass: confirm the
 service-role key never reaches the client, confirm RLS on every table,
 confirm the cron route rejects a missing/wrong secret.
-**Pass/fail:** manual checklist signed off.
+**Pass/fail:** manual checklist signed off — including human sign-off on the first-login onboarding flow (landing page → sign in → tutorial → complete/skip → reminders, and returning login skips onboarding).
 
 ---
 

@@ -101,7 +101,7 @@ All timestamps are stored in UTC; each user's time zone is detected at first log
 ## 4. Risks & Roadmap
 
 ### Phased Rollout
-- **MVP (v1):** Everything in Section 2 — Google sign-in, one-off and repeating reminders, custom lead times, done/reopen, pause, delete, delivery status.
+- **MVP (v1):** Everything in Section 2 — Google sign-in, one-off and repeating reminders, custom lead times, done/reopen, pause, delete, delivery status. Also included: a public marketing landing page at `/` (unauthenticated access; signed-in users redirected to `/reminders`); a per-user delivery statistics page at `/stats`; a branded HTML email alongside the plain-text fallback; and a first-login interactive onboarding tutorial (three steps, no real data inserted, skippable) gating the first visit to `/reminders` via a `profiles.onboarded` flag.
 - **v1.1:** Notification preferences (e.g. a daily digest instead of separate emails), reminder search/filter as the list grows.
 - **v2.0:** Optional second channel (e.g. browser push), shared/team reminders, calendar import.
 

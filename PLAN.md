@@ -228,7 +228,7 @@
   - Files: `app/settings/page.tsx`, `app/actions/settings.ts`, `app/api/account/delete/route.ts`
   - Done: time zone change updates `profiles.timezone`; pause toggle updates `profiles.paused`; the delete-account button calls `POST /api/account/delete`, which uses the admin client (`lib/supabase/admin.ts`) to delete the `auth.users` row (which cascades to all reminder data) and then signs the user out.
   - **Why a dedicated route:** deleting `auth.users` requires the service-role key. Per T2.6, only two files may import `lib/supabase/admin.ts` — the cron route and this route. A server action cannot hold the service-role key, so the deletion is isolated in its own narrow API route.
-  - **Note:** the `profiles` upsert on first sign-in (T5.4) must set `onboarded = false`; the redirect to `/onboarding` is governed by middleware (see T6.8), not this action.
+  - **Note:** `profiles.onboarded` does not exist until the T6.9 migration runs. Existing rows for users who signed up before M6 are covered by the `DEFAULT false` clause on that migration column — no additional backfill query is needed. New sign-ups after T6.9 lands receive `onboarded = false` from the column default automatically; T5.4 (M5, complete) does not need modification. The redirect to `/onboarding` is governed by middleware (see T8.9).
 
 ### Tasks — Landing Page (Agent C — parallel with A and B after M5)
 
@@ -242,6 +242,7 @@
   - Middleware public allowlist (no auth required): `["/", "/login"]`
   - Middleware signed-in redirect: `GET /` with a valid session → `302 /reminders`
   - Done: `curl -I <URL>/` (no session) returns 200 with landing page content; a signed-in user hitting `/` lands on `/reminders`.
+  - **Middleware ownership:** T6.8 is the **sole owner** of `middleware.ts` in M6. T8.9 (M8) supersedes this with 3-tier onboarding routing — T8.9 must not start until T6.8 is merged. Do not run T6.8 and T8.9 concurrently.
   - **Impeccable:** run `impeccable shape app/page.tsx` to plan the surface (Persuade mode), build the page, then `impeccable polish app/page.tsx` before marking done.
 
 ### Tasks — Stats Page + `onboarded` Migration (Agent D — parallel with A, B, C after M5)
@@ -266,8 +267,9 @@
 ### Playwright Tests (read-only for implementer — written by planning before T6.1)
 
 - [ ] **T6.12** Confirm E2E tests pass for create, edit (re-arms schedule), mark done, pause, delete, landing page (unauthenticated access), and stats page (authenticated access).
-  - Files: `tests/e2e/reminders.spec.ts`, `tests/e2e/settings.spec.ts`
+  - Files: `tests/e2e/reminders.spec.ts`, `tests/e2e/settings.spec.ts`, `tests/e2e/landing.spec.ts`, `tests/e2e/stats.spec.ts`
   - Done: all pass.
+  - ⚠️ **Planning blocker:** `tests/e2e/landing.spec.ts` and `tests/e2e/stats.spec.ts` do not yet exist. Per `AGENTS.md` Testing Constraint, planning must author both spec files **before T6.1 begins**. The implementing agent must not create or modify them. If these files are absent when M6 implementation starts, stop and flag back to planning.
 
 
 ---
@@ -294,11 +296,12 @@
 
 ## M8 — Polish & Review
 
-**Pass/fail (from `WORKFLOW.md`):** Manual checklist signed off.
+**Pass/fail (from `WORKFLOW.md`):** Manual checklist signed off — including T8.11 first-login onboarding flow verified by the human on a real browser.
 
 **Parallel-agent opportunities:**
 - **Empty/error states** (T8.1) and **mobile layout** (T8.2) are independent UI tasks — they can run in parallel.
-- **Onboarding flow** (T8.7–T8.10) touches only `app/onboarding/` and `middleware.ts`; it can run concurrently with T8.1 and T8.2.
+- **Onboarding UI + action** (T8.7, T8.8, T8.10 — `app/onboarding/` and `app/actions/onboarding.ts` only) can run concurrently with T8.1 and T8.2. These tasks do **not** touch `middleware.ts`.
+- **T8.9** (`middleware.ts` 3-tier routing) is **sequential** — it must start only after T6.8 (M6) is merged, because T6.8 and T8.9 are both sole owners of `middleware.ts` at their respective milestones. T8.9 replaces T6.8's 2-tier logic; running them concurrently causes a conflict.
 - **Security pass** (T8.3–T8.5) must run after all UI tasks are complete, as it audits the full codebase.
 
 ### Tasks — UI Polish (can parallelize)
