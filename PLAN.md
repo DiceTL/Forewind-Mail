@@ -198,7 +198,10 @@
 
 **Parallel-agent opportunities:**
 - **Reminder CRUD** (`app/reminders/`, `app/actions/reminders.ts`) and **Settings** (`app/settings/`, `app/actions/settings.ts`) share no files and no database tables with each other.
-- They can be built by two concurrent agent sessions after M5 is complete.
+- **Landing Page** (`app/page.tsx`, `public/assets/`) shares no files or tables with any other stream.
+- **Stats Page + Migration** (`app/stats/`, `supabase/migrations/`) reads existing tables only; shares no files with other streams.
+- **HTML Email Redesign** (`lib/mailer/`) shares no files with any UI stream.
+- All five streams can be built by concurrent agent sessions after M5 is complete.
 - **Confirm with the human before running concurrently.**
 
 ### Tasks — Reminder CRUD (Agent A)
@@ -225,12 +228,47 @@
   - Files: `app/settings/page.tsx`, `app/actions/settings.ts`, `app/api/account/delete/route.ts`
   - Done: time zone change updates `profiles.timezone`; pause toggle updates `profiles.paused`; the delete-account button calls `POST /api/account/delete`, which uses the admin client (`lib/supabase/admin.ts`) to delete the `auth.users` row (which cascades to all reminder data) and then signs the user out.
   - **Why a dedicated route:** deleting `auth.users` requires the service-role key. Per T2.6, only two files may import `lib/supabase/admin.ts` — the cron route and this route. A server action cannot hold the service-role key, so the deletion is isolated in its own narrow API route.
+  - **Note:** the `profiles` upsert on first sign-in (T5.4) must set `onboarded = false`; the redirect to `/onboarding` is governed by middleware (see T6.8), not this action.
+
+### Tasks — Landing Page (Agent C — parallel with A and B after M5)
+
+- [ ] **T6.7** Create `public/assets/` directory with a placeholder SVG wordmark and an OG image stub (1200×630 px placeholder). This directory is the canonical home for all static UI assets used by the landing page, onboarding flow, and HTML email.
+  - Files: `public/assets/wordmark.svg`, `public/assets/og-image.png`
+  - Done: files exist and are served at `/assets/wordmark.svg` by `npm run dev`.
+  - **Impeccable:** use `impeccable generate` to produce the wordmark and OG image assets.
+
+- [ ] **T6.8** Repurpose `app/page.tsx` as the public marketing / landing page explaining what Forewind Mail is and how it works. Carve `/` out of the middleware auth guard so unauthenticated users see this page first instead of being immediately redirected to `/login`. Signed-in users who hit `/` are redirected to `/reminders`.
+  - Files: `app/page.tsx`, `middleware.ts`
+  - Middleware public allowlist (no auth required): `["/", "/login"]`
+  - Middleware signed-in redirect: `GET /` with a valid session → `302 /reminders`
+  - Done: `curl -I <URL>/` (no session) returns 200 with landing page content; a signed-in user hitting `/` lands on `/reminders`.
+  - **Impeccable:** run `impeccable shape app/page.tsx` to plan the surface (Persuade mode), build the page, then `impeccable polish app/page.tsx` before marking done.
+
+### Tasks — Stats Page + `onboarded` Migration (Agent D — parallel with A, B, C after M5)
+
+- [ ] **T6.9** Write Supabase migration: add `onboarded bool default false` to `profiles`. This column gates the first-login onboarding redirect (implemented in M8) and is added here so M6 agents can rely on it.
+  - Files: `supabase/migrations/<timestamp>_add_onboarded_to_profiles.sql`, `lib/database.types.ts` (regenerated)
+  - Done: migration applies cleanly; `profiles` rows have an `onboarded` column; existing rows default to `false`.
+
+- [ ] **T6.10** Implement the `/stats` page: a server component that queries `reminders` and `reminder_occurrences` for the signed-in user and displays a statistics grid. No new tables or API routes — use the existing server Supabase client.
+  - Metrics: total reminders created; active vs done count; total emails sent / failed / pending; on-time delivery rate (rows where `sent_at - send_at < interval '2 minutes'`); most-used lead time (mode of `offset_minutes` across `reminder_offsets`); reminders created per week (sparkline or bar chart).
+  - Files: `app/stats/page.tsx`, `app/stats/StatsGrid.tsx`, `app/stats/StatsCard.tsx`
+  - Done: page renders with accurate counts for the signed-in user; empty-state is shown when there are no reminders yet.
+  - **Impeccable:** run `impeccable shape app/stats/` to plan the layout, build, then `impeccable audit app/stats/` for a11y and responsive checks.
+
+### Tasks — HTML Email Redesign (can run in parallel with all above)
+
+- [ ] **T6.11** Add a branded HTML email template to `buildEmailContent`. The `html` field is additive — `text` stays unchanged so existing tests pass. The HTML email must include: a Forewind Mail wordmark/header area (text or inline SVG — no external image URLs), a prominent title block, a deadline callout box with a color accent, a lead-time badge, and a footer with the app URL (plain text, no state-changing link — per PRD security rules). Update `sendEmail.ts` to pass the `html` field to Nodemailer alongside `text`.
+  - Files: `lib/mailer/buildEmailContent.ts`, `lib/mailer/sendEmail.ts`
+  - Type change: `EmailContent` gains `html?: string`.
+  - Done: `buildEmailContent` returns a non-empty `html` string for both deadline and no-deadline cases; `sendEmail` passes it to Nodemailer; plain-text fallback is preserved; existing cron unit tests remain green.
 
 ### Playwright Tests (read-only for implementer — written by planning before T6.1)
 
-- [ ] **T6.6** Confirm E2E tests pass for create, edit (re-arms schedule), mark done, pause, and delete.
+- [ ] **T6.12** Confirm E2E tests pass for create, edit (re-arms schedule), mark done, pause, delete, landing page (unauthenticated access), and stats page (authenticated access).
   - Files: `tests/e2e/reminders.spec.ts`, `tests/e2e/settings.spec.ts`
   - Done: all pass.
+
 
 ---
 
@@ -260,7 +298,8 @@
 
 **Parallel-agent opportunities:**
 - **Empty/error states** (T8.1) and **mobile layout** (T8.2) are independent UI tasks — they can run in parallel.
-- **Security pass** (T8.3–T8.5) must run after both UI tasks are complete, as it audits the full codebase.
+- **Onboarding flow** (T8.7–T8.10) touches only `app/onboarding/` and `middleware.ts`; it can run concurrently with T8.1 and T8.2.
+- **Security pass** (T8.3–T8.5) must run after all UI tasks are complete, as it audits the full codebase.
 
 ### Tasks — UI Polish (can parallelize)
 
@@ -283,5 +322,30 @@
 - [ ] **T8.5** Confirm `POST /api/cron/send-due` returns HTTP 401 for a request with a missing or wrong `Authorization` header.
   - Done: `curl -X POST <VERCEL_URL>/api/cron/send-due` (no header) returns 401; a request with a wrong token also returns 401.
 
-- [ ] **T8.6** *(Human step.)* Sign off the manual checklist. Record the sign-off in the commit message body for the final deploy commit.
-  - Done: human has verified T8.1–T8.5; final production deploy is live and stable.
+### Tasks — Onboarding Flow (can parallelize with T8.1 and T8.2)
+
+- [ ] **T8.7** Implement `app/onboarding/page.tsx` and `app/onboarding/OnboardingFlow.tsx`: a step-by-step interactive tutorial with at least three steps — (1) explain what Forewind Mail does, (2) simulate creating a reminder with a lead time, (3) simulate marking it done. A "Skip" button is visible at every step and jumps directly to the redirect at T8.8. The tutorial does **not** insert real data — it is purely instructional UI.
+  - Files: `app/onboarding/page.tsx`, `app/onboarding/OnboardingFlow.tsx`
+  - Done: all steps render; "Next" and "Skip" navigation work; the final step triggers the completion action in T8.8.
+  - **Impeccable:** run `impeccable onboard app/onboarding/` — this command is purpose-built for first-run flows and activation sequences.
+
+- [ ] **T8.8** Implement the onboarding completion server action: sets `profiles.onboarded = true` for the signed-in user, then redirects to `/reminders`. Called by both "Finish" (end of flow) and "Skip".
+  - Files: `app/actions/onboarding.ts`
+  - Done: after completion or skip, `profiles.onboarded` is `true` and the user is on `/reminders`; revisiting `/onboarding` while already onboarded redirects immediately to `/reminders`.
+
+- [ ] **T8.9** Update `middleware.ts` to implement the full three-tier routing logic:
+  - Public routes `["/", "/login"]` — no auth required; signed-in users hitting `/` are redirected to `/reminders`.
+  - Onboarding route `["/onboarding"]` — must be authenticated; NOT subject to the onboarded guard (prevents redirect loop).
+  - All other routes — must be authenticated; if `profiles.onboarded = false`, redirect to `/onboarding`.
+  - Files: `middleware.ts`
+  - Done: an unauthenticated user hitting `/reminders` is redirected to `/`; a newly signed-in user (onboarded = false) hitting `/reminders` is redirected to `/onboarding`; a returning user (onboarded = true) reaches `/reminders` normally.
+
+- [ ] **T8.10** Run `impeccable audit app/onboarding/` and `impeccable polish app/onboarding/` — address all a11y, responsive, and finish-quality findings before marking done.
+  - Files: `app/onboarding/page.tsx`, `app/onboarding/OnboardingFlow.tsx` (and any other files flagged by the audit)
+  - Done: no critical findings remain; mobile layout is clean at 375 px.
+
+- [ ] **T8.11** *(Human step.)* Create a fresh test account; verify the full first-login experience: landing page → sign in → onboarding tutorial → complete/skip → reminders page. Verify a returning login skips onboarding. Record sign-off in the commit message body.
+  - Done: human has verified the flow end-to-end on a real browser.
+
+- [ ] **T8.6** *(Human step.)* Sign off the full manual checklist (T8.1–T8.5 and T8.11). Record the sign-off in the commit message body for the final deploy commit.
+  - Done: human has verified all tasks; final production deploy is live and stable.
