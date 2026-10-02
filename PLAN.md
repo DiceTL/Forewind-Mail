@@ -269,7 +269,7 @@
 - [ ] **T6.12** Confirm E2E tests pass for create, edit (re-arms schedule), mark done, pause, delete, landing page (unauthenticated access), and stats page (authenticated access).
   - Files: `tests/e2e/reminders.spec.ts`, `tests/e2e/settings.spec.ts`, `tests/e2e/landing.spec.ts`, `tests/e2e/stats.spec.ts`
   - Done: all pass.
-  - ⚠️ **Planning blocker:** `tests/e2e/landing.spec.ts` and `tests/e2e/stats.spec.ts` do not yet exist. Per `AGENTS.md` Testing Constraint, planning must author both spec files **before T6.1 begins**. The implementing agent must not create or modify them. If these files are absent when M6 implementation starts, stop and flag back to planning.
+  - **Planning note:** `tests/e2e/landing.spec.ts` and `tests/e2e/stats.spec.ts` are authored. `tests/e2e/isolation.spec.ts` asserts unauthenticated `/reminders` → `/login` (not `/`) so it stays compatible with T6.8. Implementing agents must not modify any of these files.
 
 
 ---

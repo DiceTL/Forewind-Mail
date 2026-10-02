@@ -21,13 +21,17 @@ import {
  * seeded via service role. Read/edit/complete isolation is asserted under
  * each user's JWT via PostgREST (RLS) — does not require M6 reminder UI.
  *
- * Unauthenticated / → /login requires T5.2 middleware; expect red until then.
+ * Unauthenticated /reminders → /login requires T5.2 middleware. As of M6
+ * (T6.8), `/` is a public marketing page — that redirect lives in
+ * tests/e2e/landing.spec.ts, not here.
  * RLS cases fail closed when E2E env is missing (no silent skip).
  */
 
 test.describe("user isolation", () => {
-  test("unauthenticated request to / redirects to /login", async ({ page }) => {
-    await page.goto("/");
+  test("unauthenticated request to /reminders redirects to /login", async ({
+    page,
+  }) => {
+    await page.goto("/reminders");
     await expect(page).toHaveURL(/\/login/);
   });
 
