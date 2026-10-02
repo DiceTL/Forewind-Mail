@@ -247,7 +247,7 @@
 
 ### Tasks — Stats Page + `onboarded` Migration (Agent D — parallel with A, B, C after M5)
 
-- [ ] **T6.9** Write Supabase migration: add `onboarded bool default false` to `profiles`. This column gates the first-login onboarding redirect (implemented in M8) and is added here so M6 agents can rely on it.
+- [x] **T6.9** Write Supabase migration: add `onboarded bool default false` to `profiles`. This column gates the first-login onboarding redirect (implemented in M8) and is added here so M6 agents can rely on it.
   - Files: `supabase/migrations/<timestamp>_add_onboarded_to_profiles.sql`, `lib/database.types.ts` (regenerated)
   - Done: migration applies cleanly; `profiles` rows have an `onboarded` column; existing rows default to `false`.
 
