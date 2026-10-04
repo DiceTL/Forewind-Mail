@@ -204,14 +204,14 @@
 
 ### T6.7 — Static Assets
 
-- [ ] **T6.7** Create `public/assets/` directory with a placeholder SVG wordmark and an OG image stub (1200×630 px placeholder). This directory is the canonical home for all static UI assets used by the landing page, onboarding flow, and HTML email.
+- [x] **T6.7** Create `public/assets/` directory with a placeholder SVG wordmark and an OG image stub (1200×630 px placeholder). This directory is the canonical home for all static UI assets used by the landing page, onboarding flow, and HTML email.
   - Files: `public/assets/wordmark.svg`, `public/assets/og-image.png`
   - Done: `GET /assets/wordmark.svg` returns HTTP 200 with a `content-type` matching `svg` or `xml` (asserted by `landing.spec.ts`); `public/assets/og-image.png` exists at 1200×630 px.
   - **Implementation:** both assets are hand-built via code only with no new npm dependency. `wordmark.svg` is a minimal inline SVG `<text>` element (e.g. `<text>Forewind Mail</text>`); `og-image.png` is a 1200×630 placeholder PNG produced with the local `magick` binary (already installed on this machine), e.g. a neutral background with the product name and tagline — neutral black-on-white is sufficient. **Do not use `impeccable generate`, any image-generation API, or `OPENAI_API_KEY`.** The agent must not choose a brand palette or font; that is the human visual phase.
 
 ### T6.8 — Landing Page + Middleware (two-tier)
 
-- [ ] **T6.8** Repurpose `app/page.tsx` as the public marketing landing page. Carve `/` out of the middleware auth guard so unauthenticated users reach this page. Signed-in users hitting `/` are redirected to `/reminders`.
+- [x] **T6.8** Repurpose `app/page.tsx` as the public marketing landing page. Carve `/` out of the middleware auth guard so unauthenticated users reach this page. Signed-in users hitting `/` are redirected to `/reminders`.
   - Files: `app/page.tsx`, `middleware.ts`
   - Middleware public allowlist (no auth required): `["/", "/login"]`
   - Middleware signed-in redirect: authenticated `GET /` → `302 /reminders`
@@ -226,7 +226,7 @@
 
 ### T6.1–T6.4 — Reminder CRUD
 
-- [ ] **T6.1** Implement create-reminder server action and form page: title input (label `"Title"`), optional deadline datetime-local input (label `"Deadline"`), one or more lead-time inputs (label `"Lead time (minutes)"`, 5-minute stepper, min 5 min), repeat toggle + pattern selector (daily / weekly on chosen days / monthly). Submit button label `"Create reminder"`.
+- [x] **T6.1** Implement create-reminder server action and form page: title input (label `"Title"`), optional deadline datetime-local input (label `"Deadline"`), one or more lead-time inputs (label `"Lead time (minutes)"`, 5-minute stepper, min 5 min), repeat toggle + pattern selector (daily / weekly on chosen days / monthly). Submit button label `"Create reminder"`.
   - Files: `app/reminders/new/page.tsx`, `app/reminders/new/ReminderForm.tsx`, `app/actions/reminders.ts`
   - Done (contract from `tests/e2e/reminders.spec.ts`):
     - Route `/reminders/new` renders with labels `"Title"`, `"Deadline"`, `"Lead time (minutes)"` and button `"Create reminder"`.
@@ -234,7 +234,7 @@
     - After success, browser navigates to `/reminders` and the new title is visible.
     - A lead time whose computed `send_at` is already in the past at creation time surfaces a `role="alert"` element, keeps the browser on `/reminders/new`, and inserts nothing into any table.
 
-- [ ] **T6.2** Implement reminder list view: title, next scheduled send time, and per-occurrence delivery status.
+- [x] **T6.2** Implement reminder list view: title, next scheduled send time, and per-occurrence delivery status.
   - Files: `app/reminders/page.tsx`, `app/reminders/ReminderList.tsx`, `app/reminders/ReminderCard.tsx`
   - Done (contract from `tests/e2e/reminders.spec.ts`):
     - Route `/reminders` is auth-protected.
@@ -243,7 +243,7 @@
     - Cards include a `role="button"` named `"Mark done"` (when active) and `"Reopen"` (when done).
     - List shows only the signed-in user's reminders.
 
-- [ ] **T6.3** Implement edit-reminder form page and server action. Changing the deadline calls `recomputeOnDeadlineEdit`; overdue offsets are cancelled, not burst-sent. Save button label `"Save reminder"`.
+- [x] **T6.3** Implement edit-reminder form page and server action. Changing the deadline calls `recomputeOnDeadlineEdit`; overdue offsets are cancelled, not burst-sent. Save button label `"Save reminder"`.
   - Files: `app/reminders/[id]/edit/page.tsx`, `app/actions/reminders.ts`
   - Done (contract from `tests/e2e/reminders.spec.ts`):
     - Route `/reminders/[id]/edit` renders with label `"Deadline"` and button `"Save reminder"`.
@@ -251,7 +251,7 @@
     - After saving a deadline so close that the lead time is already overdue: the affected occurrence's `status` becomes `"cancelled"` — not queued for burst sending.
     - After success, browser navigates to `/reminders`.
 
-- [ ] **T6.4** Implement mark-done and reopen server actions wired to the list card buttons.
+- [x] **T6.4** Implement mark-done and reopen server actions wired to the list card buttons.
   - Files: `app/actions/reminders.ts` (additive to T6.1/T6.3 work)
   - Done (contract from `tests/e2e/reminders.spec.ts`):
     - Clicking `"Mark done"`: `reminders.status` → `"done"`; all `pending` occurrences for that reminder → `"cancelled"`; card's `role="status"` shows `"Done"`.
@@ -259,7 +259,7 @@
 
 ### T6.5 — Settings
 
-- [ ] **T6.5** Implement settings page: IANA time zone selector, pause-emails switch, and delete-account action with confirmation step.
+- [x] **T6.5** Implement settings page: IANA time zone selector, pause-emails switch, and delete-account action with confirmation step.
   - Files: `app/settings/page.tsx`, `app/actions/settings.ts`, `app/api/account/delete/route.ts`
   - Done (contract from `tests/e2e/settings.spec.ts`):
     - Route `/settings` renders with a `<select>` labelled `"Time zone"` populated with IANA zone options; selecting a zone updates `profiles.timezone` in the DB.
@@ -276,7 +276,7 @@
 
 ### T6.10 — Stats Page
 
-- [ ] **T6.10** Implement the `/stats` page: a server component that queries `reminders`, `reminder_offsets`, and `reminder_occurrences` for the signed-in user and displays a statistics grid. No new tables or API routes — use the existing server Supabase client.
+- [x] **T6.10** Implement the `/stats` page: a server component that queries `reminders`, `reminder_offsets`, and `reminder_occurrences` for the signed-in user and displays a statistics grid. No new tables or API routes — use the existing server Supabase client.
   - Metrics: total reminders created; active vs done count; total emails sent / failed / pending; on-time delivery rate (occurrences where `sent_at − send_at < 2 minutes`); most-used lead time (mode of `offset_minutes` across `reminder_offsets`); reminders created per week (data list or table — no charting library required).
   - Files: `app/stats/page.tsx`, `app/stats/StatsGrid.tsx`, `app/stats/StatsCard.tsx`
   - Done (contract from `tests/e2e/stats.spec.ts`):
@@ -289,7 +289,7 @@
 
 ### T6.11 — HTML Email
 
-- [ ] **T6.11** Add a branded HTML email template to `buildEmailContent`. The `html` field is additive — `text` stays unchanged so existing cron unit tests pass.
+- [x] **T6.11** Add a branded HTML email template to `buildEmailContent`. The `html` field is additive — `text` stays unchanged so existing cron unit tests pass.
   - Files: `lib/mailer/buildEmailContent.ts`, `lib/mailer/sendEmail.ts`
   - Type change: `EmailContent` gains `html?: string`.
   - Required HTML structure (inline, no external resources): header mark (`"Forewind Mail"` as plain text or inline SVG — no external image URLs); prominent title block; deadline callout block (omitted when no deadline); lead-time badge; footer with the app URL as plain-text only — no `<a href>` constituting a state-changing link (per PRD security rule).

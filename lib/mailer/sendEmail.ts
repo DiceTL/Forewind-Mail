@@ -4,6 +4,7 @@ export type SendEmailInput = {
   to: string;
   subject: string;
   text: string;
+  html?: string;
 };
 
 // Transport-only wrapper around Gmail SMTP.
@@ -22,6 +23,7 @@ export async function sendEmail({
   to,
   subject,
   text,
+  html,
 }: SendEmailInput): Promise<void> {
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_APP_PASSWORD;
@@ -36,5 +38,5 @@ export async function sendEmail({
     auth: { user, pass },
   });
 
-  await transporter.sendMail({ from: user, to, subject, text });
+  await transporter.sendMail({ from: user, to, subject, text, html });
 }

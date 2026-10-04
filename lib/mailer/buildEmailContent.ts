@@ -10,6 +10,7 @@ export type BuildEmailContentInput = {
 export type EmailContent = {
   subject: string;
   text: string;
+  html?: string;
 };
 
 function formatLeadTime(offsetMinutes: number): string {
@@ -37,6 +38,47 @@ function formatDeadlineLocal(deadline: DateTime, timezone: string): string {
   return local.toFormat("EEEE, MMMM d, yyyy 'at' h:mm a ZZZZ");
 }
 
+function escapeHtml(raw: string): string {
+  return raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildHtml({
+  title,
+  deadline,
+  offsetMinutes,
+  timezone,
+}: BuildEmailContentInput): string {
+  const lead = formatLeadTime(offsetMinutes);
+  const safeTitle = escapeHtml(title);
+  const safeLead = escapeHtml(lead);
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const safeAppUrl = escapeHtml(appUrl);
+
+  const deadlineBlock =
+    deadline && deadline.isValid
+      ? `<p style="margin: 16px 0; padding: 12px; background-color: #f5f5f5;">Due: ${escapeHtml(formatDeadlineLocal(deadline, timezone))}</p>`
+      : "";
+
+  const footerBlock = safeAppUrl
+    ? `<p style="margin: 24px 0 0; font-size: 12px; color: #666666;">Open Forewind Mail to mark it done or update the reminder. ${safeAppUrl}</p>`
+    : `<p style="margin: 24px 0 0; font-size: 12px; color: #666666;">Open Forewind Mail to mark it done or update the reminder.</p>`;
+
+  return [
+    `<div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">`,
+    `<p style="margin: 0 0 16px; font-size: 14px; color: #666666;">Forewind Mail</p>`,
+    `<h1 style="margin: 0 0 8px; font-size: 24px;">${safeTitle}</h1>`,
+    deadlineBlock,
+    `<p><span style="display: inline-block; padding: 4px 12px; background-color: #eeeeee;">${safeLead} before</span></p>`,
+    footerBlock,
+    `</div>`,
+  ].join("");
+}
+
 export function buildEmailContent({
   title,
   deadline,
@@ -61,7 +103,11 @@ export function buildEmailContent({
       ``,
       closing,
     ].join("\n");
-    return { subject, text };
+    return {
+      subject,
+      text,
+      html: buildHtml({ title, deadline, offsetMinutes, timezone }),
+    };
   }
 
   const text = [
@@ -73,5 +119,9 @@ export function buildEmailContent({
     ``,
     closing,
   ].join("\n");
-  return { subject, text };
+  return {
+    subject,
+    text,
+    html: buildHtml({ title, deadline, offsetMinutes, timezone }),
+  };
 }

@@ -184,6 +184,7 @@ export async function POST(req: Request): Promise<Response> {
           to: email,
           subject: content.subject,
           text: content.text,
+          html: content.html,
         });
         await supabase
           .from("reminder_occurrences")

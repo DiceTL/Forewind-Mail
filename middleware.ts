@@ -2,11 +2,13 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 function isPublicPath(pathname: string): boolean {
-  // Per PLAN T5.2 only /login is the public page. The OAuth callback and
-  // the secret-protected cron route must also bypass the session check:
-  // the callback carries a one-time `code` (no session yet), and the cron
-  // route authenticates via bearer token, not a user session.
+  // Per PLAN T6.8 two-tier routing: "/" and "/login" are public.
+  // The OAuth callback and the secret-protected cron route must also
+  // bypass the session check: the callback carries a one-time `code`
+  // (no session yet), and the cron route authenticates via bearer
+  // token, not a user session.
   return (
+    pathname === "/" ||
     pathname === "/login" ||
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/api/cron/")
@@ -57,7 +59,14 @@ export async function middleware(request: NextRequest) {
 
   if (user && pathname === "/login") {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/";
+    redirectUrl.pathname = "/reminders";
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  // T6.8: signed-in users hitting the public landing page go to reminders.
+  if (user && pathname === "/") {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/reminders";
     return NextResponse.redirect(redirectUrl);
   }
 
