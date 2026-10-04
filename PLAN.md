@@ -194,82 +194,114 @@
 
 ## M6 — Frontend
 
-**Pass/fail (from `WORKFLOW.md`):** Manual + Playwright coverage of create, edit (re-arms schedule), mark done (cancels series), pause, delete.
+**Pass/fail (from `WORKFLOW.md`):** All four M6 Playwright spec files green; manual verification of create, edit (re-arms schedule), mark done (cancels series), pause, delete.
 
-**Parallel-agent opportunities:**
-- **Reminder CRUD** (`app/reminders/`, `app/actions/reminders.ts`) and **Settings** (`app/settings/`, `app/actions/settings.ts`) share no files and no database tables with each other.
-- **Landing Page** (`app/page.tsx`, `public/assets/`) shares no files or tables with any other stream.
-- **Stats Page + Migration** (`app/stats/`, `supabase/migrations/`) reads existing tables only; shares no files with other streams.
-- **HTML Email Redesign** (`lib/mailer/`) shares no files with any UI stream.
-- All five streams can be built by concurrent agent sessions after M5 is complete.
-- **Confirm with the human before running concurrently.**
+**Parallel-agent opportunities:** None — human directs sequential build.
 
-### Tasks — Reminder CRUD (Agent A)
+**Build order (strictly sequential):** T6.7 → T6.8 → T6.1 → T6.2 → T6.3 → T6.4 → T6.5 → T6.10 → T6.11 → T6.12.
 
-- [ ] **T6.1** Implement create-reminder form: title input, optional deadline date+time picker, one or more lead-time inputs (5-minute stepper, min 5 min, inline error if already past), repeat toggle + pattern selector (daily / weekly on chosen days / monthly).
-  - Files: `app/reminders/new/page.tsx`, `app/reminders/new/ReminderForm.tsx`, `app/actions/reminders.ts`
-  - Done: submitting inserts `reminders`, `reminder_offsets`, and computed `reminder_occurrences` rows; a past-at-creation offset shows an inline error and blocks submission.
+> **Testing constraint:** Per `WORKFLOW.md`, all M6 E2E tests are planning-frozen and must not be modified by the implementing agent. If a test appears wrong, flag it back to planning. Do not write a `DESIGN.md`, do not choose a color palette, typeface, or visual world — styling uses shadcn tokens from `app/globals.css` only. Visual direction, comps, polish, and a11y audit are a human manual phase after T6.12 is green, one page at a time with its spec re-run after each visual change.
 
-- [ ] **T6.2** Implement reminder list view: title, next scheduled send time, and per-occurrence delivery status (pending / sent / failed with timestamp).
-  - Files: `app/reminders/page.tsx`, `app/reminders/ReminderList.tsx`, `app/reminders/ReminderCard.tsx`
-  - Done: list shows only the signed-in user's reminders; statuses are accurate.
-
-- [ ] **T6.3** Implement edit-reminder form: changing the deadline calls `recomputeOnDeadlineEdit`; overdue offsets are cancelled, not burst-sent.
-  - Files: `app/reminders/[id]/edit/page.tsx`, `app/actions/reminders.ts`
-  - Done: deadline edit updates occurrences correctly; no overdue burst.
-
-- [ ] **T6.4** Implement mark-done and reopen actions.
-  - Files: `app/actions/reminders.ts`
-  - Done: marking done cancels all `pending` occurrences; reopen sets reminder status to `active` without recomputing occurrences (per `WORKFLOW.md` open assumption).
-
-### Tasks — Settings (Agent B — parallel with Agent A after M5)
-
-- [ ] **T6.5** Implement settings page: IANA time zone selector (editable), pause toggle (stops all sending immediately), delete-account action.
-  - Files: `app/settings/page.tsx`, `app/actions/settings.ts`, `app/api/account/delete/route.ts`
-  - Done: time zone change updates `profiles.timezone`; pause toggle updates `profiles.paused`; the delete-account button calls `POST /api/account/delete`, which uses the admin client (`lib/supabase/admin.ts`) to delete the `auth.users` row (which cascades to all reminder data) and then signs the user out.
-  - **Why a dedicated route:** deleting `auth.users` requires the service-role key. Per T2.6, only two files may import `lib/supabase/admin.ts` — the cron route and this route. A server action cannot hold the service-role key, so the deletion is isolated in its own narrow API route.
-  - **Note:** `profiles.onboarded` does not exist until the T6.9 migration runs. Existing rows for users who signed up before M6 are covered by the `DEFAULT false` clause on that migration column — no additional backfill query is needed. New sign-ups after T6.9 lands receive `onboarded = false` from the column default automatically; T5.4 (M5, complete) does not need modification. The redirect to `/onboarding` is governed by middleware (see T8.9).
-
-### Tasks — Landing Page (Agent C — parallel with A and B after M5)
+### T6.7 — Static Assets
 
 - [ ] **T6.7** Create `public/assets/` directory with a placeholder SVG wordmark and an OG image stub (1200×630 px placeholder). This directory is the canonical home for all static UI assets used by the landing page, onboarding flow, and HTML email.
   - Files: `public/assets/wordmark.svg`, `public/assets/og-image.png`
-  - Done: files exist and are served at `/assets/wordmark.svg` by `npm run dev`.
-  - **Impeccable:** use `impeccable generate` to produce the wordmark and OG image assets.
+  - Done: `GET /assets/wordmark.svg` returns HTTP 200 with a `content-type` matching `svg` or `xml` (asserted by `landing.spec.ts`); `public/assets/og-image.png` exists at 1200×630 px.
+  - **Implementation:** both assets are hand-built via code only. `wordmark.svg` is a minimal inline SVG `<text>` element (e.g. `<text>Forewind Mail</text>`); `og-image.png` is a 1200×630 placeholder PNG produced by a small Node script, the `sharp` package, or a `<canvas>` call — neutral black-on-white is sufficient. **Do not use `impeccable generate`, any image-generation API, or `OPENAI_API_KEY`.** The agent must not choose a brand palette or font; that is the human visual phase.
 
-- [ ] **T6.8** Repurpose `app/page.tsx` as the public marketing / landing page explaining what Forewind Mail is and how it works. Carve `/` out of the middleware auth guard so unauthenticated users see this page first instead of being immediately redirected to `/login`. Signed-in users who hit `/` are redirected to `/reminders`.
+### T6.8 — Landing Page + Middleware (two-tier)
+
+- [ ] **T6.8** Repurpose `app/page.tsx` as the public marketing landing page. Carve `/` out of the middleware auth guard so unauthenticated users reach this page. Signed-in users hitting `/` are redirected to `/reminders`.
   - Files: `app/page.tsx`, `middleware.ts`
   - Middleware public allowlist (no auth required): `["/", "/login"]`
-  - Middleware signed-in redirect: `GET /` with a valid session → `302 /reminders`
-  - Done: `curl -I <URL>/` (no session) returns 200 with landing page content; a signed-in user hitting `/` lands on `/reminders`.
+  - Middleware signed-in redirect: authenticated `GET /` → `302 /reminders`
+  - Done (contract from `tests/e2e/landing.spec.ts`):
+    - Unauthenticated `GET /` → HTTP 200, URL stays on `/`.
+    - Page has `role="heading" level=1` with accessible name `"Forewind Mail"`.
+    - Page contains visible text matching `/email reminder/i`.
+    - Page has `role="link"` with accessible name `/sign in/i` and `href` matching `/login`.
+    - Authenticated `GET /` → redirected to `/reminders`.
+  - **Styling:** shadcn tokens from `app/globals.css` only. Readable, structurally correct HTML — no palette choice, no DESIGN.md.
   - **Middleware ownership:** T6.8 is the **sole owner** of `middleware.ts` in M6. T8.9 (M8) supersedes this with 3-tier onboarding routing — T8.9 must not start until T6.8 is merged. Do not run T6.8 and T8.9 concurrently.
-  - **Impeccable:** run `impeccable shape app/page.tsx` to plan the surface (Persuade mode), build the page, then `impeccable polish app/page.tsx` before marking done.
 
-### Tasks — Stats Page + `onboarded` Migration (Agent D — parallel with A, B, C after M5)
+### T6.1–T6.4 — Reminder CRUD
+
+- [ ] **T6.1** Implement create-reminder server action and form page: title input (label `"Title"`), optional deadline datetime-local input (label `"Deadline"`), one or more lead-time inputs (label `"Lead time (minutes)"`, 5-minute stepper, min 5 min), repeat toggle + pattern selector (daily / weekly on chosen days / monthly). Submit button label `"Create reminder"`.
+  - Files: `app/reminders/new/page.tsx`, `app/reminders/new/ReminderForm.tsx`, `app/actions/reminders.ts`
+  - Done (contract from `tests/e2e/reminders.spec.ts`):
+    - Route `/reminders/new` renders with labels `"Title"`, `"Deadline"`, `"Lead time (minutes)"` and button `"Create reminder"`.
+    - Successful submission inserts one `reminders` row, one `reminder_offsets` row (with the entered `offset_minutes`), and one or more `reminder_occurrences` rows with `status = 'pending'` and `send_at` equal to `deadline − offset_minutes` (within 60 s tolerance) using `computeSendTime` math.
+    - After success, browser navigates to `/reminders` and the new title is visible.
+    - A lead time whose computed `send_at` is already in the past at creation time surfaces a `role="alert"` element, keeps the browser on `/reminders/new`, and inserts nothing into any table.
+
+- [ ] **T6.2** Implement reminder list view: title, next scheduled send time, and per-occurrence delivery status.
+  - Files: `app/reminders/page.tsx`, `app/reminders/ReminderList.tsx`, `app/reminders/ReminderCard.tsx`
+  - Done (contract from `tests/e2e/reminders.spec.ts`):
+    - Route `/reminders` is auth-protected.
+    - Each reminder renders as `role="article"` with accessible name equal to the reminder title.
+    - Each card exposes a `role="status"` element with accessible name `"Active"` or `"Done"` matching the reminder's current DB status.
+    - Cards include a `role="button"` named `"Mark done"` (when active) and `"Reopen"` (when done).
+    - List shows only the signed-in user's reminders.
+
+- [ ] **T6.3** Implement edit-reminder form page and server action. Changing the deadline calls `recomputeOnDeadlineEdit`; overdue offsets are cancelled, not burst-sent. Save button label `"Save reminder"`.
+  - Files: `app/reminders/[id]/edit/page.tsx`, `app/actions/reminders.ts`
+  - Done (contract from `tests/e2e/reminders.spec.ts`):
+    - Route `/reminders/[id]/edit` renders with label `"Deadline"` and button `"Save reminder"`.
+    - After saving a new deadline that is far enough in the future: existing pending occurrences have their `send_at` updated to `newDeadline − offset_minutes` (within 60 s) and remain `"pending"`.
+    - After saving a deadline so close that the lead time is already overdue: the affected occurrence's `status` becomes `"cancelled"` — not queued for burst sending.
+    - After success, browser navigates to `/reminders`.
+
+- [ ] **T6.4** Implement mark-done and reopen server actions wired to the list card buttons.
+  - Files: `app/actions/reminders.ts` (additive to T6.1/T6.3 work)
+  - Done (contract from `tests/e2e/reminders.spec.ts`):
+    - Clicking `"Mark done"`: `reminders.status` → `"done"`; all `pending` occurrences for that reminder → `"cancelled"`; card's `role="status"` shows `"Done"`.
+    - Clicking `"Reopen"`: `reminders.status` → `"active"`; occurrence statuses are **not** recomputed (per `WORKFLOW.md` open assumption — cancelled stays cancelled); card's `role="status"` shows `"Active"`.
+
+### T6.5 — Settings
+
+- [ ] **T6.5** Implement settings page: IANA time zone selector, pause-emails switch, and delete-account action with confirmation step.
+  - Files: `app/settings/page.tsx`, `app/actions/settings.ts`, `app/api/account/delete/route.ts`
+  - Done (contract from `tests/e2e/settings.spec.ts`):
+    - Route `/settings` renders with a `<select>` labelled `"Time zone"` populated with IANA zone options; selecting a zone updates `profiles.timezone` in the DB.
+    - Page renders a `role="switch"` element with accessible name `"Pause emails"`; initial `aria-checked` reflects `profiles.paused`; clicking it toggles `profiles.paused` in the DB.
+    - Page renders a `role="button"` named `"Delete account"`; clicking it shows a `role="button"` named `"Confirm delete"`; clicking confirm calls `POST /api/account/delete`, which uses `lib/supabase/admin.ts` to delete the `auth.users` row (cascading all reminder data), signs the user out, and redirects to `/login`; the auth user no longer exists in the DB.
+  - **Admin client constraint (from T2.6):** `lib/supabase/admin.ts` may be imported only by `app/api/cron/send-due/route.ts` and `app/api/account/delete/route.ts`.
+  - **Note:** `profiles.onboarded` column (T6.9) is already present; T6.5 does not need to interact with it. The redirect to `/onboarding` for new users is governed by middleware in T8.9.
+
+### T6.9 — `onboarded` Migration (already done)
 
 - [x] **T6.9** Write Supabase migration: add `onboarded bool default false` to `profiles`. This column gates the first-login onboarding redirect (implemented in M8) and is added here so M6 agents can rely on it.
   - Files: `supabase/migrations/<timestamp>_add_onboarded_to_profiles.sql`, `lib/database.types.ts` (regenerated)
   - Done: migration applies cleanly; `profiles` rows have an `onboarded` column; existing rows default to `false`.
 
-- [ ] **T6.10** Implement the `/stats` page: a server component that queries `reminders` and `reminder_occurrences` for the signed-in user and displays a statistics grid. No new tables or API routes — use the existing server Supabase client.
-  - Metrics: total reminders created; active vs done count; total emails sent / failed / pending; on-time delivery rate (rows where `sent_at - send_at < interval '2 minutes'`); most-used lead time (mode of `offset_minutes` across `reminder_offsets`); reminders created per week (sparkline or bar chart).
+### T6.10 — Stats Page
+
+- [ ] **T6.10** Implement the `/stats` page: a server component that queries `reminders`, `reminder_offsets`, and `reminder_occurrences` for the signed-in user and displays a statistics grid. No new tables or API routes — use the existing server Supabase client.
+  - Metrics: total reminders created; active vs done count; total emails sent / failed / pending; on-time delivery rate (occurrences where `sent_at − send_at < 2 minutes`); most-used lead time (mode of `offset_minutes` across `reminder_offsets`); reminders created per week (data list or table — no charting library required).
   - Files: `app/stats/page.tsx`, `app/stats/StatsGrid.tsx`, `app/stats/StatsCard.tsx`
-  - Done: page renders with accurate counts for the signed-in user; empty-state is shown when there are no reminders yet.
-  - **Impeccable:** run `impeccable shape app/stats/` to plan the layout, build, then `impeccable audit app/stats/` for a11y and responsive checks.
+  - Done (contract from `tests/e2e/stats.spec.ts`):
+    - Unauthenticated `GET /stats` redirects to `/login`.
+    - Authenticated page renders `role="heading"` with name matching `/stats|statistics/i`.
+    - Empty state (zero reminders): `role="status"` with accessible name `/no reminders yet/i` is visible.
+    - Populated grid: 8 `role="article"` elements with accessible names `"Total reminders"`, `"Active reminders"`, `"Done reminders"`, `"Emails sent"`, `"Emails failed"`, `"Emails pending"`, `"On-time delivery rate"`, `"Most-used lead time"` — each containing the correct count as visible text.
+    - A `role="region"` with accessible name matching `/reminders created per week/i` is visible.
+  - **Styling:** shadcn tokens only; no palette choice; layout details are the human visual phase.
 
-### Tasks — HTML Email Redesign (can run in parallel with all above)
+### T6.11 — HTML Email
 
-- [ ] **T6.11** Add a branded HTML email template to `buildEmailContent`. The `html` field is additive — `text` stays unchanged so existing tests pass. The HTML email must include: a Forewind Mail wordmark/header area (text or inline SVG — no external image URLs), a prominent title block, a deadline callout box with a color accent, a lead-time badge, and a footer with the app URL (plain text, no state-changing link — per PRD security rules). Update `sendEmail.ts` to pass the `html` field to Nodemailer alongside `text`.
+- [ ] **T6.11** Add a branded HTML email template to `buildEmailContent`. The `html` field is additive — `text` stays unchanged so existing cron unit tests pass.
   - Files: `lib/mailer/buildEmailContent.ts`, `lib/mailer/sendEmail.ts`
   - Type change: `EmailContent` gains `html?: string`.
-  - Done: `buildEmailContent` returns a non-empty `html` string for both deadline and no-deadline cases; `sendEmail` passes it to Nodemailer; plain-text fallback is preserved; existing cron unit tests remain green.
+  - Required HTML structure (inline, no external resources): header mark (`"Forewind Mail"` as plain text or inline SVG — no external image URLs); prominent title block; deadline callout block (omitted when no deadline); lead-time badge; footer with the app URL as plain-text only — no `<a href>` constituting a state-changing link (per PRD security rule).
+  - Done: `buildEmailContent` returns a non-empty `html` string for both deadline and no-deadline cases; `sendEmail` passes it to Nodemailer alongside `text`; existing cron unit tests remain green; no external image URLs in the HTML. Inline color accents may use neutral defaults — visual direction is the human phase.
 
-### Playwright Tests (read-only for implementer — written by planning before T6.1)
+### T6.12 — E2E Confirmation
 
-- [ ] **T6.12** Confirm E2E tests pass for create, edit (re-arms schedule), mark done, pause, delete, landing page (unauthenticated access), and stats page (authenticated access).
-  - Files: `tests/e2e/reminders.spec.ts`, `tests/e2e/settings.spec.ts`, `tests/e2e/landing.spec.ts`, `tests/e2e/stats.spec.ts`
-  - Done: all pass.
-  - **Planning note:** `tests/e2e/landing.spec.ts` and `tests/e2e/stats.spec.ts` are authored. `tests/e2e/isolation.spec.ts` asserts unauthenticated `/reminders` → `/login` (not `/`) so it stays compatible with T6.8. Implementing agents must not modify any of these files.
+- [ ] **T6.12** Run the full E2E suite. All M6 spec files must pass.
+  - Files (read-only — do not modify): `tests/e2e/reminders.spec.ts`, `tests/e2e/settings.spec.ts`, `tests/e2e/landing.spec.ts`, `tests/e2e/stats.spec.ts`
+  - Done: `npx playwright test` exits 0 on all four files; `git diff tests/` is empty.
+  - **Planning note:** `tests/e2e/isolation.spec.ts` asserts unauthenticated `/reminders` → `/login` (not `/`), so it stays compatible with the T6.8 two-tier middleware. Implementing agents must not modify any test file; if a test appears wrong, flag it to planning.
+  - **After T6.12 is green:** visual direction, design comps, theme tokens, polish, and a11y audit are a **human manual phase**, one page at a time with its spec re-run after each visual change. The implementing agent must not begin that phase, must not write a `DESIGN.md`, and must not choose a color palette, typeface, or visual world.
 
 
 ---
@@ -309,10 +341,12 @@
 - [ ] **T8.1** Add empty state to the reminder list (shown when the user has no reminders) and inline error states for form submission failures and network errors.
   - Files: `app/reminders/page.tsx`, `app/reminders/ReminderList.tsx`, shared error/empty-state components as needed
   - Done: empty list shows a helpful call-to-action; form errors are surfaced inline without a full-page reload.
+  - **Human-led visual phase:** visual styling, copywriting, and UI polish for these states are a human manual phase — the agent delivers structurally correct, accessible markup only.
 
 - [ ] **T8.2** Mobile layout audit: check all pages at 375 px viewport width; fix any horizontal overflow or tap-target issues (minimum 44 px).
   - Files: any layout or component files with issues discovered during audit
   - Done: no horizontal overflow at 375 px; all interactive targets are ≥ 44 px.
+  - **Human-led visual phase:** theme, color, and font decisions for the mobile layout are a human manual phase — the agent fixes overflow and tap-target dimensions only.
 
 ### Tasks — Security Pass (sequential, after UI polish)
 
@@ -330,7 +364,7 @@
 - [ ] **T8.7** Implement `app/onboarding/page.tsx` and `app/onboarding/OnboardingFlow.tsx`: a step-by-step interactive tutorial with at least three steps — (1) explain what Forewind Mail does, (2) simulate creating a reminder with a lead time, (3) simulate marking it done. A "Skip" button is visible at every step and jumps directly to the redirect at T8.8. The tutorial does **not** insert real data — it is purely instructional UI.
   - Files: `app/onboarding/page.tsx`, `app/onboarding/OnboardingFlow.tsx`
   - Done: all steps render; "Next" and "Skip" navigation work; the final step triggers the completion action in T8.8.
-  - **Impeccable:** run `impeccable onboard app/onboarding/` — this command is purpose-built for first-run flows and activation sequences.
+  - **Human-led visual phase:** visual design, comps, and polish for the onboarding flow are a human manual phase — the agent delivers structurally correct, accessible, skippable tutorial markup only; do not choose a color palette, illustration style, or animation scheme.
 
 - [ ] **T8.8** Implement the onboarding completion server action: sets `profiles.onboarded = true` for the signed-in user, then redirects to `/reminders`. Called by both "Finish" (end of flow) and "Skip".
   - Files: `app/actions/onboarding.ts`
@@ -343,9 +377,10 @@
   - Files: `middleware.ts`
   - Done: an unauthenticated user hitting `/reminders` is redirected to `/`; a newly signed-in user (onboarded = false) hitting `/reminders` is redirected to `/onboarding`; a returning user (onboarded = true) reaches `/reminders` normally.
 
-- [ ] **T8.10** Run `impeccable audit app/onboarding/` and `impeccable polish app/onboarding/` — address all a11y, responsive, and finish-quality findings before marking done.
-  - Files: `app/onboarding/page.tsx`, `app/onboarding/OnboardingFlow.tsx` (and any other files flagged by the audit)
-  - Done: no critical findings remain; mobile layout is clean at 375 px.
+- [ ] **T8.10** Address any a11y and mobile layout issues in the onboarding pages flagged during manual review.
+  - Files: `app/onboarding/page.tsx`, `app/onboarding/OnboardingFlow.tsx` (and any other files flagged)
+  - Done: no critical a11y violations remain; mobile layout is clean at 375 px.
+  - **Human-led visual phase:** visual polish, comps, and design audit for the onboarding flow (palette, animation, illustration) are a human manual phase — run by the human after T8.7–T8.9 are structurally complete, not by the implementing agent.
 
 - [ ] **T8.11** *(Human step.)* Create a fresh test account; verify the full first-login experience: landing page → sign in → onboarding tutorial → complete/skip → reminders page. Verify a returning login skips onboarding. Record sign-off in the commit message body.
   - Done: human has verified the flow end-to-end on a real browser.
