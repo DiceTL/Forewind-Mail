@@ -207,7 +207,7 @@
 - [ ] **T6.7** Create `public/assets/` directory with a placeholder SVG wordmark and an OG image stub (1200×630 px placeholder). This directory is the canonical home for all static UI assets used by the landing page, onboarding flow, and HTML email.
   - Files: `public/assets/wordmark.svg`, `public/assets/og-image.png`
   - Done: `GET /assets/wordmark.svg` returns HTTP 200 with a `content-type` matching `svg` or `xml` (asserted by `landing.spec.ts`); `public/assets/og-image.png` exists at 1200×630 px.
-  - **Implementation:** both assets are hand-built via code only. `wordmark.svg` is a minimal inline SVG `<text>` element (e.g. `<text>Forewind Mail</text>`); `og-image.png` is a 1200×630 placeholder PNG produced by a small Node script, the `sharp` package, or a `<canvas>` call — neutral black-on-white is sufficient. **Do not use `impeccable generate`, any image-generation API, or `OPENAI_API_KEY`.** The agent must not choose a brand palette or font; that is the human visual phase.
+  - **Implementation:** both assets are hand-built via code only with no new npm dependency. `wordmark.svg` is a minimal inline SVG `<text>` element (e.g. `<text>Forewind Mail</text>`); `og-image.png` is a 1200×630 placeholder PNG produced with the local `magick` binary (already installed on this machine), e.g. a neutral background with the product name and tagline — neutral black-on-white is sufficient. **Do not use `impeccable generate`, any image-generation API, or `OPENAI_API_KEY`.** The agent must not choose a brand palette or font; that is the human visual phase.
 
 ### T6.8 — Landing Page + Middleware (two-tier)
 
