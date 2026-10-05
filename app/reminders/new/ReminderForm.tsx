@@ -32,6 +32,10 @@ export default function ReminderForm() {
           type="datetime-local"
           className="rounded-md border border-input bg-background px-3 py-2"
         />
+        <p className="text-sm text-muted-foreground">
+          Optional — leave blank for a general reminder with no fixed date. If
+          set, pick both a date and a time.
+        </p>
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="offset">Lead time (minutes)</label>
