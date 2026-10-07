@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { Button } from "@/components/ui/button";
+import { signOut } from "../actions/auth";
 import ReminderList from "./ReminderList";
 
 export default async function RemindersPage() {
@@ -44,7 +46,19 @@ export default async function RemindersPage() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 p-8">
       <h1 className="text-2xl font-semibold tracking-tight">Reminders</h1>
-      <Link href="/reminders/new">New reminder</Link>
+      <nav
+        aria-label="Primary"
+        className="flex flex-wrap items-center gap-4"
+      >
+        <Link href="/reminders/new">New reminder</Link>
+        <Link href="/stats">Stats</Link>
+        <Link href="/settings">Settings</Link>
+        <form action={signOut}>
+          <Button type="submit" variant="outline">
+            Sign out
+          </Button>
+        </form>
+      </nav>
       <ReminderList
         items={rows.map((r) => ({
           reminder: r,
