@@ -5,37 +5,15 @@ import { useState } from "react";
 import { setPaused, updateTimezone } from "@/app/actions/settings";
 import { Button } from "@/components/ui/button";
 
-function timezones(): string[] {
-  try {
-    const values = (
-      Intl as unknown as { supportedValuesOf?: (key: string) => string[] }
-    ).supportedValuesOf?.("timeZone");
-    if (values && values.length > 0) {
-      return values;
-    }
-  } catch {
-    // fall through to fixed list
-  }
-  return [
-    "UTC",
-    "America/New_York",
-    "America/Chicago",
-    "America/Denver",
-    "America/Los_Angeles",
-    "Europe/London",
-    "Europe/Paris",
-    "Europe/Berlin",
-    "Asia/Tokyo",
-    "Australia/Sydney",
-  ];
-}
-
-export function TimezoneSelector({ initial }: { initial: string }) {
+export function TimezoneSelector({
+  initial,
+  zones,
+}: {
+  initial: string;
+  zones: string[];
+}) {
   const [value, setValue] = useState(initial);
-  const zones = timezones();
-  const options = zones.includes(initial)
-    ? zones
-    : [initial, ...zones];
+  const options = zones.includes(initial) ? zones : [initial, ...zones];
 
   async function handleChange(next: string) {
     setValue(next);
